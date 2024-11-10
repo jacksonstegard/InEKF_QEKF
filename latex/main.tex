@@ -1,0 +1,48 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass{article}
+
+% Language setting
+% Replace `english' with e.g. `spanish' to change the document language
+\usepackage[english]{babel}
+
+% Set page size and margins
+% Replace `letterpaper' with`a4paper' for UK/EU standard size
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+% Useful packages
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref} % Setup hyperlinks to blue
+\usepackage{amssymb}
+\usepackage{algorithm2e}
+\usepackage{float} % Make algorithm appear in correct location
+\newtheorem{theorem}{Theorem}
+\usepackage{amssymb} % Used for \triangleq
+% \usepackage{pxfonts} % optional font change
+% \usepackage[LGRgreek]{mathastext} % Option to remove italics from all equations
+
+% New commands
+% \newcommand{\R}{\ensuremath{\mathbb{R}}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+% Chapters
+\input{1 - Introduction.tex}
+\input{2 - IMU GPS Modeling.tex}
+\input{3 - Quaternion Kalman Filter Background.tex}
+\input{4 - Invariant Kalman Filter Background.tex}
+\input{5 - Simulation Results.tex}
+\input{6 - Conclusion.tex}
+
+% References setup
+\bibliographystyle{alpha}
+\bibliography{refs}
+
+\end{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+% Notes:
+To comment out text ctrl+shift+7

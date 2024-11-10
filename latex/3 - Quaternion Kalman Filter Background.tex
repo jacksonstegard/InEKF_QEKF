@@ -1,0 +1,379 @@
+\section{Quaternion Extended Kalman Filter}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Purpose}
+Quaternions are one way to represent a rotation in 3D space. They are four-dimensional vectors that allow efficient and stable computation of orientation and rotation. Quaternions have many advantages over other representations such as Euler angles, especially when it comes to representing the attitude state of a system. One significant advantage is that quaternions avoid the singularities, or ``gimbal lock'' \cite{7868509} that can arise with Euler angles, which leads to undefined attitudes. Furthermore, quaternions provide smoother interpolation between orientations and require fewer computational resources due to their compact form.
+
+In this section, a Quaternion Extended Kalman Filter is detailed by first giving a background on quaternions and useful properties. The state model is then formulated considering the process dynamics and measurement model for the QEKF. An outline is then provided for running the algorithm.
+\subsection{Background}
+The quaternion $q$ is represented by a four element vector made of a complex $q_w \in \mathbb{R}$ and real part $q_v \in \mathbb{R}^3$
+\begin{equation}
+       q =  \begin{bmatrix}
+                q_w \\
+                q_v
+            \end{bmatrix} 
+            = \begin{bmatrix}
+                q_w \\
+                q_x \\
+                q_y \\
+                q_z
+            \end{bmatrix} 
+\label{eq: quaternion vector}
+\end{equation}
+Quaternion multiplication $\otimes$ is used in the composition of two quaternions and csn be defined for two quaternions $p$ and $q$ \cite{Quaternion_Kinematics_for_the_Error-state_EKF} as
+\begin{equation}
+       p \otimes q=\left[\begin{array}{l}p_w q_w-p_x q_x-p_y q_y-p_z q_z \\ p_w q_x+p_x q_w+p_y q_z-p_z q_y \\ p_w q_y-p_x q_z+p_y q_w+p_z q_x \\ p_w q_z+p_x q_y-p_y q_x+p_z q_w\end{array}\right]
+\label{eq: quaternion multiplication}
+\end{equation}
+An alternate expression for quaternion multiplication that can be utilized is the following \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+\begin{equation}
+    p \otimes q = (p)_L q = (q)_R p
+    \label{eq: alt q mult}
+\end{equation}
+Where $(q)_L$ and $(q)_R$ are given by 
+\begin{equation}
+    (q)_L = q_w I + \begin{bmatrix}
+        0 & -q_v^T \\
+        q_v & (q_v)_{\times}
+    \end{bmatrix}
+    \label{eq: (q)_L matrix}
+\end{equation}
+
+\begin{equation}
+    (q)_R = q_w I + \begin{bmatrix}
+        0 & -q_v^T \\
+        q_v & -(q_v)_{\times}
+    \end{bmatrix}
+    \label{eq: (q)_R matrix}
+\end{equation}
+The conjugate of the quaternion is defined as follows and is utilized in the quaternion norm
+\begin{equation}
+    q^* = \begin{bmatrix}
+                q_w \\
+                -q_v
+            \end{bmatrix} 
+    \label{eq: quaterion conjugate}
+\end{equation}
+
+\begin{equation}
+    \|q\| = \sqrt{q \otimes q^*} = \sqrt{q^* \otimes q} = \sqrt{q_w^2 + q_x^2 + q_y^2 + q_z^2}
+    \label{eq: quaterion conjugate property}
+\end{equation}
+A unit quaternion, with a norm equal to 1 ($\|q\| = 1$), is the type of quaternion used in this report and can be shown to be related to the exponential map. The relationship to the exponential map can be related to a rotation action about a angle $\psi \in \mathbb{R}$ and unit axis $u \in \mathbb{R}^3$. While further explained in \cite{Quaternion_Kinematics_for_the_Error-state_EKF}, the resulting equation is the following
+\begin{equation}
+    q = \exp{(\psi u)} = q\{ \psi u \}\ = \cos{(\frac{\psi}{2})} + u \sin{(\frac{\psi}{2})} = \begin{bmatrix}
+                \cos{(\frac{\psi}{2})} \\
+                u \sin{(\frac{\psi}{2})}
+            \end{bmatrix} 
+    \label{eq: q exp}
+\end{equation}
+A incremental rotation can then be represented as $\Delta \theta = \omega \Delta t$ where $u = \frac{\omega \Delta t}{\| \omega \Delta t\|}$ and $\psi = \| \omega \Delta t\|$. Substituting into equation \eqref{eq: q exp}, an incremental quaternion can be defined as
+\begin{equation}
+    \delta q = \exp{(\omega \Delta t)} = q\{\omega \Delta t\} = \cos{(\frac{\| \omega \Delta t\|}{2})} +             \frac{\omega \Delta t}{\| \omega \Delta t\|} \sin{(\frac{\| \omega \Delta t\|}{2})} 
+    = \begin{bmatrix}
+                \cos{\frac{\| \omega \Delta t\|}{2}} \\
+                \frac{\omega \Delta t}{\| \omega \Delta t\|} \sin{\frac{\| \omega \Delta t\|}{2}}
+            \end{bmatrix} 
+    \label{eq: q exp with omega delta t}
+\end{equation}
+This incremental quaternion $\delta q$ can also simply be approximated by \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+\begin{equation}
+    \delta q = \begin{bmatrix}
+        1\\
+        \frac{1}{2} \omega \Delta t
+    \end{bmatrix}
+    \label{eq: delta q approx}
+\end{equation}
+
+The rotation of a given vector can be accomplished with the double quaternion product. As an example, the position vector in the body frame can be rotated into the world frame
+\begin{equation}
+        p_W^{BW} = q_{WB} \otimes p_B^{BW} \otimes q_{WB}^*
+    \label{eq: quaterion rotation of p}
+\end{equation}
+A quaternion can also be converted into a rotation matrix, which can accomplish the same transformation as in $\eqref{eq: quaterion rotation of p}$, with the following formula \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+\begin{equation}
+    R = R\{q\} = \left[\begin{array}{ccc}q_w^2+q_x^2-q_y^2-q_z^2 & 2\left(q_x q_y-q_w q_z\right) & 2\left(q_x q_z+q_w q_y\right) \\ 2\left(q_x q_y+q_w q_z\right) & q_w^2-q_x^2+q_y^2-q_z^2 & 2\left(q_y q_z-q_w q_x\right) \\ 2\left(q_x q_z-q_w q_y\right) & 2\left(q_y q_z+q_w q_x\right) & q_w^2-q_x^2-q_y^2+q_z^2\end{array}\right]
+    \label{eq: q to R}
+\end{equation}
+Additionally, there exists conversions between quaternions and Euler angles which are necessary to initialize a quaternion about initial set of  Euler angles and to convert a quaternion to a more understandable Euler angle representation. These conversions are defined for a 3-2-1 rotation sequence for the Euler angles $\theta = [\theta_1, \theta_2, \theta_3]^T$ \cite{EulerQ} \cite{blanco2021tutorial}
+\begin{equation}
+    q = q\{\theta\} = \left[\begin{array}{c}\cos (\theta_1 / 2) \cos (\theta_2 / 2) \cos (\theta_3 / 2)+\sin (\theta_1 / 2) \sin (\theta_2 / 2) \sin (\theta_3 / 2) \\ \sin (\theta_1 / 2) \cos (\theta_2 / 2) \cos (\theta_3 / 2)-\cos (\theta_1 / 2) \sin (\theta_2 / 2) \sin (\theta_3 / 2) \\ \cos (\theta_1 / 2) \sin (\theta_2 / 2) \cos (\theta_3 / 2)+\sin (\theta_1 / 2) \cos (\theta_2 / 2) \sin (\theta_3 / 2) \\ \cos (\theta_1 / 2) \cos (\theta_2 / 2) \sin (\theta_3 / 2)-\sin (\theta_1 / 2) \sin (\theta_2 / 2) \cos (\theta_3 / 2)\end{array}\right]
+    \label{eq: Euler to quaternion}
+\end{equation}
+
+\begin{equation}
+    \theta = \theta\{q\} =\left[\begin{array}{c}\operatorname{atan2}\left(2\left(q_w q_x+q_y q_z\right), 1-2\left(q_x^2+q_y^2\right)\right) \\ \operatorname{asin} (2 (q_w q_z - q_x q_y) \\ \operatorname{atan2}\left(2\left(q_w q_z+q_x q_y\right), 1-2\left(q_y^2+q_z^2\right)\right)\end{array}\right]
+    \label{eq: Quaternion to Euler}
+\end{equation}
+Note that equation \eqref{eq: Euler to quaternion}, provides an alternate method to compute $\delta q$ as done in equation \eqref{eq: q exp with omega delta t}. This alternate method will be the one used in this report.
+
+
+\subsection{Process Model Error States and Jacobians}
+The QEKF used in this report is a Error State Kalman Filter (ESKF). In this report, this means that the matrices used to update the state covariance for the Kalman Filter are derived from errors dynamics for each of the states in the filter. Error dynamics can better handle nonlinear state dynamics because the ESKF linearizes only the error between the estimated and true states as opposed to linearizing the entire state which can introduce larger linearization errors. Therefore, by using the error states to linearize the system, the covariance can be more accurately propagated.
+
+The propagation of the states themselves is done using the discrete process model equation defined in equations \eqref{eq: quaternion discrete}, \eqref{eq: velocity discrete}, and \eqref{eq: position discrete}. Because of the use of the error states, the estimated state must be broken down into a error $\delta x$ and nominal state $\bar{x}$. The nominal state is propagated by the high frequency IMU data not accounting for noise. The nominal states are defined as
+\begin{equation}
+    \bar{x}_k = \begin{bmatrix}
+            \bar{p}_k \\
+            \bar{v}_k \\
+            \bar{q}_k \\
+            \bar{b}^a_k \\
+            \bar{b}^{\omega}_k
+        \end{bmatrix} 
+    \label{eq: nominal x vec}
+\end{equation}
+Additionally, the inputs from the IMU are defined as
+\begin{equation}
+        u_k = \begin{bmatrix}
+            \bar{\Tilde{a}}_k \\
+            \bar{\Tilde{\omega}}_k \\
+        \end{bmatrix} 
+    \label{eq: inputs IMU quaternion}
+\end{equation}
+The process model $f_{\text{QEKF}}(\bar{x}_{k-1},u_{k-1})$ for the nominal states is
+\begin{subequations}
+    \label{eq: f nominal quaternion}
+    \begin{align}
+        \bar{p}_k &= \bar{p}_{k-1} + \frac{1}{2} g \Delta t^2 + \bar{R}_{k-1} (\Tilde{a}_{k-1} - \bar{b}^{a}_{k-1}) 
+        \left( I \Delta t^2 + \frac{1}{2} \Delta t^3 (\Tilde{\omega}_{k-1} - \bar{b}^{\omega}_{k-1})_{\times} \right) \label{eq:p for f a} \\
+        \bar{v}_k &= \bar{v}_{k-1} + g \Delta t + \bar{R}_{k-1} (\Tilde{a}_{k-1} - \bar{b}^{a}_{k-1}) 
+        \left( I \Delta t + \frac{1}{2} \Delta t^2 (\Tilde{\omega}_{k-1} - \bar{b}^{\omega}_{k-1})_{\times} \right) \label{eq:v for f b} \\
+        \bar{q}_k &= 
+        \bar{q}_{k-1} \otimes \bar{q}_{k-1}\{\Delta t(\Tilde{\omega}_{k-1} - \bar{b}^{\omega}_{k-1})\} \label{eq:q for f c}\\
+        \bar{b}^{a}_{k} &= \bar{b}^{a}_{k-1} \label{eq:b^a for f d} \\
+        \bar{b}^{\omega}_{k} &= \bar{b}^{\omega}_{k-1} \label{eq:b^(omega) for f d}
+    \end{align}
+\end{subequations}
+
+The error state vector is similar to equation \eqref{eq: nominal x vec}, however, the parameters for the quaternion are replaced with the Euler angles because while it is useful to update the representation of the attitude with the quaternion, the actual error in the attitude is better represented by the Euler angles themselves. The error states vector $\delta x$ is
+\begin{equation}
+    \delta x_k = \begin{bmatrix}
+            \delta p_k \\
+             \delta v_k \\
+            \delta \theta_k \\
+            \delta b^a_k \\
+            \delta b^{\omega}_k
+        \end{bmatrix} 
+    \label{eq: error x vec}
+\end{equation}
+To derive the error states, the true state can be broken down into the nominal state and error state
+\begin{equation}
+    x = \bar{x} \oplus \delta x
+    \label{eq:true = nominal + error}
+\end{equation}
+Where the symbol $\oplus$ is used to represent the addition of the nominal and error state and accounts for the quaternion multiplication $\otimes$ required to update quaternion. A quaternion error in the world frame, also known as a right error for a world centric estimator, is equal to \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+\begin{equation}
+    \delta q = q \otimes \bar{q}^*
+    \label{eq: q right error}
+\end{equation}
+Therefore, to update a quaternion $q$, which can be formally written as $q_{WB}$, the error quaternion state can be multiplied by the nominal quaternion
+\begin{equation}
+    q = \delta q \otimes \bar{q}
+    \label{eq: q right update}
+\end{equation}
+
+To derive the velocity error, equation \eqref{eq:v dot} can be written in terms of the true states then broken down into the nominal and error states. In deriving \eqref{eq: delta v con}, it is useful to derive a alternate equation for acceleration error 
+\begin{equation}
+    \begin{split}
+        a &= \Tilde{a} - b^a - w^a \\
+          &= (\Tilde{a} - \bar{b}^a) + (-\delta b^a - w^a) \\
+          &= \bar{a} + \delta a
+    \end{split}
+    \label{eq: alt delta a}
+\end{equation}
+From \eqref{eq: alt delta a}, it is shown that $\delta a = -\delta b^a - w^a$. A first order approximation can also be used to update the rotation matrix from the error $\delta \theta$. Furthermore, using the proof that uncorrelated white noise is invariant under a rotation \cite{Quaternion_Kinematics_for_the_Error-state_EKF} and dropping second order terms the continuous time error velocity equation is
+\begin{equation}
+    \begin{split}
+        \dot{v} &= R a + g \\
+        \dot{\bar{v}} + \delta \dot{v} &\approx (I + (\delta \theta)_{\times}) \bar{R} (\bar{a} + \delta a) + g\\
+        \bar{R} \bar{a} + g + \delta{\dot{v}} &= \bar{R} \delta a + \bar{R} \delta a + (\delta \theta)_{\times} \bar{R} \bar{a} + (\delta \theta)_{\times} \bar{R} \delta a + g\\
+        \delta \dot{v} &=\bar{R} \delta a + (\delta \theta)_{\times} \bar{R} (\bar{a} + \delta a)\\
+         &\approx \bar{R} \delta a - (\bar{R} \bar{a})_{\times} \delta \theta\\
+         &=  -(\bar{R} (\Tilde{a} - \bar{b}^a))_{\times} \delta \theta - \bar{R} \delta b^a - \bar{R} w^a\\
+         &=  -(\bar{R} (\Tilde{a} - \bar{b}^a))_{\times} \delta \theta - \bar{R} \delta b^a - w^a\\
+    \end{split}
+    \label{eq: delta v con}
+\end{equation}
+
+To derive the attitude error $\delta \theta$, the continuous time equation for a quaternion \eqref{eq:q dot} can broken down into nominal and error components using equation \eqref{eq: q right update}. Because $\omega$ in \eqref{eq:q dot} is in the body frame, equation \eqref{eq: quaterion rotation of p} can be used as well to redefine the coordinate frame of $\omega$. Using equation \eqref{eq: (q)_R matrix} allows $\delta q \otimes \omega$ to be rewritten as a matrix with $\delta q$ being approximated by equation \eqref{eq: delta q approx}. Dropping second order terms, the attitude error is
+\begin{equation}
+    \begin{split}
+        \dot{q} &= \frac{1}{2} q \otimes (\omega)\\
+        \frac{d}{dt} (\delta q \otimes \bar{q}) &= \frac{1}{2} q \otimes (\omega)\\
+        \delta \dot{q} \otimes \bar{q} + \delta q \otimes (\frac{1}{2} \bar{q} \otimes \bar{\omega}) &= \frac{1}{2} q \otimes (\omega)\\
+        \delta \dot{q} \otimes \bar{q} &= \frac{1}{2} (-\delta q \otimes (\frac{1}{2} \bar{q} \otimes \bar{\omega}) + q \otimes \omega)\\
+        \delta \dot{q} \otimes \bar{q} &= \frac{1}{2} \delta q \otimes \bar{q} \otimes \delta \omega \\
+        \delta \dot{q} &= \frac{1}{2} \delta q \otimes \bar{q} \otimes \delta \omega \otimes \bar{q}^*\\
+        \delta \dot{q} &= \frac{1}{2} \delta q \otimes \delta \omega_W^{BW}\\
+        \begin{bmatrix}
+            0\\
+            \delta \dot{\theta}
+        \end{bmatrix}
+        &=  2 \delta \dot{q} = \delta q \otimes \delta \omega_W^{BW}\\
+        &\approx \begin{bmatrix}
+            0 & (-\delta \omega_W^{BW})^T \\
+            \delta \omega_W^{BW} & -(\omega_W^{BW})_{\times}
+        \end{bmatrix}
+        \begin{bmatrix}
+            1 \\
+            \frac{1}{2} \delta \theta 
+        \end{bmatrix}\\
+        \dot{\delta \theta} &= \delta \omega_W^{BW} - \frac{1}{2} (\delta \omega_W^{BW})_{\times} \delta \theta\\
+        &\approx \delta \omega_W^{BW} = R_{WB} \delta \omega\\
+        &= -R \delta b^{\omega} - R w^{\omega}\\
+        &=  -R \delta b^{\omega} - w^{\omega}
+    \end{split}
+    \label{eq: delta theta cont}
+\end{equation}
+The continuous time error states are then
+\begin{subequations}
+    \begin{align}
+        \delta \dot{p} &= \delta v \label{eq: error p cont}\\
+        \delta \dot{v} &=  -(\bar{R} (\Tilde{a} - \bar{b}^a))_{\times} \delta \theta - \bar{R} \delta b^a - w^a \label{eq: error v cont}\\
+        \delta \dot{\theta} &= -R \delta b^{\omega} - w^{\omega} \label{eq: error theta cont}\\
+        \delta \dot{b}^a &= w^{ba} \label{eq: error b^{a} cont}\\
+        \delta \dot{b}^{\omega} &= w^{b \omega} \label{eq: error b^{ba} cont}
+    \end{align}
+\end{subequations}
+
+
+These continuous time error states can be discretized user Euler integration. To calculate the rotation matrix, the nominal estimate of the quaternion can be converted into the rotation matrix using equation \eqref{eq: q to R}
+\begin{subequations}
+    \begin{align}
+        \delta p_k &= \delta p_{k-1} + \delta v_{k-1} \Delta t \label{eq: discrete error p}\\
+        \delta v_k &= \delta v_{k-1} + \left( -(R\{\bar{q}_{k-1}\} (\Tilde{a} - \bar{b}^a_{k-1}))_{\times} \delta \theta_{k-1} - R\{\bar{q}_{k-1}\} \delta b^a_{k-1} + w^a \right) \Delta t \label{eq: discrete error v}\\
+        \delta \theta_k &= \delta \theta_{k-1} - \left( R\{\bar{q}_{k-1}\} \delta b^{\omega}_{k-1} + w^{\omega} \right) \Delta t \label{eq: discrete error theta}\\
+        \delta b^a_k &= \delta b^a_{k-1} + w^{ba} \Delta t \label{eq: discrete error bias accel}\\
+        \delta b^{\omega}_k &= \delta b^{\omega}_{k-1} + w^{\omega a} \Delta t \label{eq: discrete error bias omega}
+    \end{align}
+\end{subequations}
+
+
+With the discrete time equations, the state transition matrix $F_k$ and state covariance matrix $Q$ for the Kalman Filter can be defined as follows
+
+\begin{equation}
+    F_k = \frac{\partial f}{\partial \delta x} \bigg|_{\bar{x}}= 
+    \begin{bmatrix}
+        I & \Delta t I & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
+        \mathbf{0} & I & (-(R\{\bar{q}_{k-1}\} (\Tilde{a} - \bar{b}^a_{k-1}))_{\times} & -R\{\bar{q}_{k-1}\} \Delta t& \mathbf{0} \\
+        \mathbf{0} & \mathbf{0} & I & \mathbf{0} & -R\{\bar{q}_{k-1}\} \Delta t\\
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & I & \mathbf{0}\\
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} & I\
+    \end{bmatrix}
+    \label{eq: quaternion F}
+\end{equation}
+
+\begin{equation}
+    Q = \begin{bmatrix}
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
+        \mathbf{0} & \sigma_{a,d}^2 I& \mathbf{0} & \mathbf{0} & \mathbf{0} \\
+        \mathbf{0} & \mathbf{0} & \sigma_{\omega,d}^2 I & \mathbf{0} & \mathbf{0} \\
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & \sigma_{ba,d}^2 I  & \mathbf{0} \\
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} & \sigma_{b \omega,d}^2 I  \\
+    \end{bmatrix}
+    \label{eq: quaternion Q}
+\end{equation}
+Here the bolded zeros $\mathbf{0}$ represents a 3 by 3 zero matrix $0_{3 \times 3}$. Additionally, the subscript d is used to represent the discretized noise based on table \eqref{tab: Measurement Noise Statistics}.
+
+\subsection{Measurement Jacobian}
+
+The measurement Jacobian $H$ is defined with respect to the error state $\delta x$. However, for the GPS model, the estimated position is not a error state and is equal to $\bar{p}$. Therefore, the chain rule can be used to break down the Jacobian into 
+derivatives of known states \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+\begin{equation}
+    H = \frac{\partial h}{\partial \delta x} \bigg|_{\bar{x}} = \frac{\partial h}{\partial x} \bigg|_{\bar{x}} \frac{\partial x}{\partial \delta x} \bigg|_{\bar{x}} 
+    \label{eq: H quaternion}
+\end{equation}
+With the GPS model being fairly simple the only partial in $ \frac{\partial x}{\partial \delta x} |_{\bar{x}}$ of relevance is $\frac{\partial (\bar{p} + \delta p)}{\partial \delta p}$ which is equal to the identity matrix. Therefore, the measurement Jacobian reduces to the typical one derived without error states equal to 
+\begin{equation}
+    H = \begin{bmatrix}
+        I & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
+        \multicolumn{5}{c}{0_{12 \times 12}}
+        \end{bmatrix}
+    \label{eq: H quaternion full}
+\end{equation}
+The full measurement $\Tilde{y} \in \mathbb{R}^{15}$ and the measurement covariance $N \in \mathbb{R}^{15 \times 15}$ are defined as
+\begin{equation}
+    \Tilde{y} = \begin{bmatrix}
+        \Tilde{y_p} \\
+        0_{12}
+    \end{bmatrix}
+    \label{eq: y tilde quaternion}
+\end{equation}
+
+\begin{equation}
+   N =  \begin{bmatrix}
+        \sigma^2_{y_p} I & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
+        \multicolumn{5}{c}{0_{12 \times 12}}
+        \end{bmatrix}
+    \label{eq: N quaternion}
+\end{equation}
+
+\subsection{ESEK Reset Jacobian}
+As described in \cite{Quaternion_Kinematics_for_the_Error-state_EKF}, after the nominal states is updated with the error state, during the correction step, the error $\delta x$ gets reset to zero. Therefore, to make the ESKF update complete, the covariance of the error needs to reflect this reset. Calling the error reset function $g()$, it is defined as \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+\begin{equation}
+    \delta x \leftarrow g(\delta x) = \delta x \ominus \delta \hat{x}
+    \label{eq: g() reset fnc}
+\end{equation}
+Here $\ominus$ is the composition inverse of $\otimes$. Additionally, the $\hat{(\cdot)}$ is used to signify the estimated error variable. The ESKF reset is defined as \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+\begin{subequations}
+    \begin{align}
+        \delta \hat{x} &\leftarrow 0\\
+        P &\leftarrow G P G^T
+        \label{eq: error reset operation}
+    \end{align}
+\end{subequations}
+Here $P \in \mathbb{R}^{15 \times 15}$ is the error state covariance matrix and $G \in \mathbb{R}^{15 \times 15}$ is the reset Jacobian matrix defined as
+\begin{equation}
+    G = \frac{\partial g}{\partial \delta x}\bigg|_{\bar{\delta x}}
+    \label{eq: G partial}
+\end{equation}
+The proof for the matrix $G$ can be found in \cite{Quaternion_Kinematics_for_the_Error-state_EKF}. The resulting matrix affects only the error attitude states and is defined as
+\begin{equation}
+    G = \begin{bmatrix}
+        I_6 & \mathbf{0} & \mathbf{0}\\
+        \mathbf{0} & I + (\frac{1}{2} \delta \hat{\theta})_{\times} & \mathbf{0}\\
+        \mathbf{0} & \mathbf{0} & I_9
+    \end{bmatrix}
+    \label{eq: Full G matrix}
+\end{equation}
+
+
+\subsection{Algorithm}
+In this section, the QEKF algorithm is outlined. The initial nominal state $\bar{x}_0$ and error state covariance $P_0$ are first initialized. The algorithm then has two optional steps given the current measurement. If IMU measurements are available, which are expected to be measured at a high rate, the propagation steps are followed. During propagation, the nominal state and error state covariance are updated. An additional check is included to ensure that the quaternion state maintains a norm close to one and if the norm has deviated the quaternion is normalized. If GPS measurements are available, which are collected at a slower rate, the state and covariance update steps are followed. The Kalman gain $K$ is first calculated and used to estimate the error state $\delta x_k$. This is then used to update the true state $x_k$ which is redefined to be the nominal state $\bar{x}_k$. The quaternion is again checked to ensure it is a unit quaternion. This is then followed by the update to the error state covariance which includes the error state reset matrix $G$. Note that the error state is always redefined as part of the correction step but no memory is given to the state which accomplishes the error reset. Also note that traditionally the state variables $\bar{x}$ and $\delta x$ are given the hat symbol $\hat{(\cdot)}$ to indicate that they are estimated but this notation was dropped to reduce clutter in the following algorithm.
+\RestyleAlgo{ruled}
+\begin{algorithm}
+\caption{QEKF}\label{alg: QESKF}
+$P_0 = \Sigma_0$\;
+$\bar{x}_0 = x_0$\;
+
+\While{$receiving$ $measurements$}{
+    \If{$IMU$ $measurement$}{
+        $\bar{x}_k = f_{\text{QEKF}}(\bar{x}_{k-1}, u_{k-1});$ \tcp{See equations in \eqref{eq: f nominal quaternion}}
+        $F_k = \frac{\partial f}{\partial \delta x} \big|_{\bar{x}_{k-1}}$\;
+        $P_k = F_k P_{k-1} F_k^T + Q$\;
+        \If{$\left|1 - \|\bar{q}_k\| \right| > 10^{-5}$}{
+            $\bar{q}_k = \frac{\bar{q}_k}{\|\bar{q}_k\|}$\;
+        }
+    }
+    \If{$GPS$ $measurement$}{
+        $S = H P_k H^T + V$\;
+        $K = P_k H^T S^{-1}$\;
+        $\delta x_k^+ = K (\Tilde{y} - H \bar{x}_k )$\;
+        $\bar{x}_k^+ = \delta x_k^+ \oplus \bar{x}_k$\tcp{Estimated true state $x_k$ redefined as nominal state $\bar{x}_k$}
+        \If{$\left|1 - \|\bar{q}_k\| \right| > 10^{-5}$}{
+            $\bar{q}_k \gets \frac{\bar{q}_k}{\|\bar{q}_k\|}$\;
+        }
+        $P_k^+ = (I - K H) P_k (I-K H)^T + K N K^T$\;
+        $P_k^{++} = G P_k^+ G^T$
+    }
+}
+\end{algorithm}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% TO DO:
+% -> Complete proof for G
+% -> Make sure it is clear that \delta x \oplus \bar{x} is for update with world error and propergation uses opposite because have body error all while using world centric quaternion
+% -> Explain that R is \bar{R} because it is the best estimate we have
+% -> Filter or filter?
+% -> Make the symbols in the algorithm more detailed for prior and posterior as well as estimated
+% -> Observability analysis

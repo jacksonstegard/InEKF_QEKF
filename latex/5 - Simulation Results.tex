@@ -1,0 +1,165 @@
+\section{Simulation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Purpose}
+The purpose of this simulation is to compare the performance of the QEKF and InEKF filters in terms of error reduction between the true and estimated state. The primary difference between these two filters is in the approach of representing rotation between different coordinate frames. In the more traditional QEKF, rotation action between states is achieved through quaternions. The InEKF utilizes a Lie group structure to represent key states. By running simulations with both filters, it can be determined whether the new Lie group-based InEKF offers advantages as compared to the quaternion based QEKF.
+
+\subsection{Setup}
+To run this comparison simulation, python scripts were created and truth trajectory data from the Mid-Air Dataset was utilized \cite{Fonder2019MidAir}.  Position, velocity, acceleration, attitude (defined as a quaternion), and angular velocity data were all sampled at a frequency of 100 Hz. For GPS measurements, the data was sampled at a rate of 1 Hz. Noisy IMU and GPS data were then simulated using the truth data, equations defined for the IMU model \eqref{eq: measurement model} and GPS model \eqref{eq: position gps}, and the standard deviations defined in table \eqref{tab: Measurement Noise Statistics}. Note that standard deviations in table \eqref{tab: Measurement Noise Statistics} simulate a fairly noisy IMU. Note also that the random walk states are multiplied by an additional $\frac{1}{s}$ because in the error update equations the noise is multiplied by $\Delta t$.
+%The specific simulation noise statistics were choose based upon \cite{9444664} and \cite{stechschulte2023imuspecs}. In selecting the standard deviation values, I chose values that fall between those typical of consumer-grade and industrial-grade IMUs.
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|}
+\hline
+\textbf{Measurement}& \textbf{Noise Standard Deviation} & \textbf{Units} \\ 
+\hline
+Accelerometer White Noise & $\sigma_{a} = 5e-2$ & $\frac{m}{s^2} \frac{1}{\sqrt{Hz}}$\\ 
+\hline
+Accelerometer Random Walk & $\sigma_{ba} = 2e-3$ & $\frac{m}{s^3} \frac{1}{\sqrt{Hz}}$\\  
+\hline
+Gyroscope White Noise & $\sigma_{\omega} = 8e-3$ & $\frac{rad}{s} \frac{1}{\sqrt{Hz}}$\\ 
+\hline
+Gyroscope Random Walk & $\sigma_{ba} = 1e-4$ & $\frac{rad}{s^2} \frac{1}{\sqrt{Hz}}$ \\ 
+\hline
+GPS White Noise & $\sigma_{\Tilde{y}_p} = 1$ & $m$ \\ 
+\hline
+\end{tabular}
+\caption{Measurement Noise Statistics}
+\label{tab: Measurement Noise Statistics}
+\end{table}
+
+% Notes on units
+% -> To match 1 / \sqrt(Hz) for white noise need to multiple my number by \sqrt(Hz)
+% -> Same needs to be done for bias. Bias is already multiplied by \Delta t so don't adjust for that
+% -> Remeber units of sigma match the mean
+
+With the measurement data generated, a Monte Carlo simulation of 50 trials was run for each filter using the same flight trajectory. In each trial, the noise statistics and initial covariance were constant. The initial condition of each of the states were then randomized over a uniform distribution. The randomized initial states are defined below in table \eqref{tab: Initial State Variations}. Note that once the initial attitude is randomized it is converted into a initial quaternion for the QEKF and the quaternion is converted into a initial rotation matrix for the InEKF.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|}
+\hline
+\textbf{Initial State} & \textbf{Randomization} & \textbf{Units} \\ 
+\hline
+Position  & $\mathcal{U}(p_0, 10) $ & $m$ \\ 
+\hline
+Velocity & $\mathcal{U}(v_0, 2)$ & $\frac{m}{s}$ \\ 
+\hline
+Attitude & $\mathcal{U}(\theta_0, 15)$ & $deg$\\ 
+\hline
+Accelerometer Bias & $\mathcal{U}(b^{a}_0, 1e-5)$ & $\frac{m}{s^3}$\\ 
+\hline
+Gyroscope Bias & $\mathcal{U}(b^{\omega}_0, 1e-6)$ & $\frac{rad}{s^2}$\\ 
+\hline
+\end{tabular}
+\caption{Initial States Randomization using the Uniform Distribution}
+\label{tab: Initial State Variations}
+\end{table}
+
+
+\subsection{Results}
+
+The position, velocity, and attitude states were tracked across each Monte Carlo for comparison between the QEKF and InEKF filters. The truth was plotted in black against the fifty different Monte Carlo runs. Additionally, the mean and max error across the Monte Carlo trials were computed and saved in table \eqref{tab: error metrics}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/QEKF_trajectory_0002_positions.pdf}
+    \caption{QEKF Position Monte Carlo Trials}
+    \label{fig: QEKF Position Monte Carlo Trials}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/QEKF_trajectory_0002_velocities.pdf}
+    \caption{QEKF Velocity Monte Carlo Trials}
+    \label{fig: QEKF Velocity Monte Carlo Trials}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/QEKF_trajectory_0002_attitudes.pdf}
+    \caption{QEKF Attitude Monte Carlo Trials}
+    \label{fig: QEKF Attitude Monte Carlo Trials}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/InEKF_trajectory_0002_positions.pdf}
+    \caption{InEKF Position Monte Carlo Trials}
+    \label{fig: InEKF Position Monte Carlo Trials}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/InEKF_trajectory_0002_velocities.pdf}
+    \caption{InEKF Velocity Monte Carlo Trials}
+    \label{fig: InEKF Velocity Monte Carlo Trials}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/InEKF_trajectory_0002_attitudes.pdf}
+    \caption{InEKF Attitude Monte Carlo Trials}
+    \label{fig: InEKF Attitude Monte Carlo Trials}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    \textbf{States} & \multicolumn{4}{|c|}{\textbf{Error Metrics}} & \textbf{Units} \\
+    \cline{2-5}
+    & \textbf{Mean QEKF} & \textbf{Mean InEKF} & \textbf{Max QEKF} & \textbf{Max InEKF} & \\
+    \hline
+    Position X & 1.2989 & 1.2776 & 9.2388 & 9.2800 & $m$ \\
+    Position Y & 0.8957 & 1.1556 & 4.5489 & 5.3071 & $m$ \\
+    Position Z & 0.8720 & 1.6427 & 3.6690 & 11.6371 & $m$ \\
+    \hline
+    Velocity X & 1.4704 & 1.3491 & 10.8342 & 10.8531 & $\frac{m}{s}$ \\
+    Velocity Y & 0.8594 & 1.0273 & 3.7589 & 3.9767 & $\frac{m}{s}$ \\
+    Velocity Z & 0.3489 & 0.8124 & 5.8320 & 10.3530 & $\frac{m}{s}$ \\
+    \hline
+    Attitude X & 2.6254 & 2.0862 & 19.5816 & 18.0105 & $deg$ \\
+    Attitude Y & 4.5363 & 3.7804 & 59.7614 & 52.4701 & $deg$ \\
+    Attitude Z & 26.9152 & 19.6650 & 43.5164 & 44.3899 & $deg$ \\
+    \hline
+\end{tabular}
+\caption{Monte Carlo Error Metrics for QEKF and InEKF Filters}
+\label{tab: error metrics}
+\end{table}
+
+
+\subsection{Discussion}
+The purpose of these simulations was to in part determine how well the InEKF performed compared to the more standard QEKF filter. In the InEKF plots, it is clear that quick convergence of the states does not occur despite results found in \cite{Contact-Aided_Invarant_EKF} and \cite{9444664}. This can be attributed to several factors which highlight issues that occur when the theoretical advantages of the InEKF are no longer true. One cause is the bias augmentation to the InEKF. The InEKF needs to be linearized around the current state just like the QEKF due to the bias states. Therefore, having a bad initialization of the state does affect the filter because its error is no longer invariant. Another issue is the lack of observability due to only using GPS position measurement and structure of the state transition matrix. This unobservability affects the bias random walk states causing drift as well as the attitude states. Another issue with the InEKF is having to switch between the right and left InEKF filters which is not exact for the bias augmented system. While exact when just estimating the state defined for the Lie group \eqref{eq: SE3_2 group}, the inclusion the parameter bias vector means that each switch from the right propagation form to the left measurement form induces some error. 
+
+Directly comparing the two filters, the mean error in the position and velocity is relatively similar besides in the vertical z components where the QEKF performed considerably better than the InEKF. For the attitudes, the InEKF performs moderately better across all attitudes. The error is found to be much larger in the z attitude due to unobservability of the state, however, it is found that the error propagated for the z attitude is less for the InEKF. Overall, the differences between the two filters, within the constraints of this estimation problem, are not substantial enough to definitively conclude that one filter outperformed the other. Future simulations and modifications to the estimation problem, as mentioned in the conclusion section, could help differentiate which filter performs better.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%To do:
+% -> Add comparision of uncertainty. Will need to reference first order approximation equations for InEKF
+% -> Mention why biases are not plotted
+% -> Mention observablility
+
+
+
+% Initial covariance table
+% \begin{table}[h!]
+% \centering
+% \begin{tabular}{|c|c|c|}
+% \hline
+% \textbf{State} & \textbf{Initial Standard Deviation ($\mathbf{R}^3$)} & \textbf{Units} \\ 
+% \hline
+% Position & $\sigma_{p} = 5$ & $m$\\ 
+% \hline
+% Velocity & $\sigma_{v} = 2$ & $\frac{m}{s}$\\  
+% \hline
+% Attitude & $\sigma_{\theta} = 7e-1$ & $rad$\\ 
+% \hline
+% Accelerometer Bias & $\sigma_{ba} = 1e-1$ & $\frac{m}{s^3}$ \\ 
+% \hline
+% Gyroscope Bias & $\sigma_{b \omega} = 1e-2$ & $\frac{rad}{s^2}$ \\ 
+% \hline
+% \end{tabular}
+% \caption{QEKF Initial Covariance ($P_0$)}
+% \label{tab: Initial Covariance}
+% \end{table}

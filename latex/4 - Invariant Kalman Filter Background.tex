@@ -1,0 +1,591 @@
+\section{Invariant Extended Kalman Filter}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Purpose}
+This section will provide the necessary background to implement the InEKF. The InEKF is a more recent filter design as of 2015 first purposed in ``The Invariant Extended Kalman filter as a stable observer'' \cite{DBLP:journals/corr/BarrauB14}. The filter uses the theory of Lie groups and log-linear error dynamics to achieve a invariant Extended Kalman Filter. This formulation allows the error dynamics to be independent of the system trajectory, avoid linearization dependent on the current state estimate, and lead to improved convergence \cite{Contact-Aided_Invarant_EKF}. Furthermore, Lie groups are singularity free which like the QEKF prevents ``gimbal lock''. However, this invariant system is not always achievable and depends upon how the states are characterized using matrix Lie groups.
+
+In this section, a background on matrix Lie groups and Lie algebra is first described. The specific formulation of a Right InEKF with a Left InEKF measurement model for this drone state estimation problem is then detailed which is followed by a outline of the InEKF algorithm.
+
+
+\subsection{Background}
+A Lie group $\mathcal{G}$ is a set of elements that for a operation combine any two elements to form a third element that also is in the set. The set of elements satisfy four conditions named closure, associativity, identity, and inevitability detailed in \cite{book}. A widely used group is the Special Orthogonal Group $SO(3)$ which represents rotations defined as \cite{book}
+\begin{equation}
+    SO(3)=\left\{R \in \mathbb{R}^{3 \times 3} \mid R R^T=1, \operatorname{det} R=1\right\}
+    \label{eq: SO3 group}
+\end{equation}
+The representation of pose can also be defined through the Special Euclidean Group which in the case of this paper will be the $SE_2(3)$ group defining the rotation matrix, velocity, and position as the entire pose
+\begin{equation}
+    SE_2(3) = \left\{X = \begin{bmatrix}
+    R & v & p\\
+    0_{3 \times 1} & 1 & 0\\
+    0_{3 \times 1} & 0 & 1
+    \end{bmatrix} \in \mathbb{R}^{5 \times 5}
+    \mid R \in SO(3); v, p \in \mathbb{R}^3\right\}
+    \label{eq: SE3_2 group}
+\end{equation}
+Each Lie group has its associated Lie algebra $\mathfrak{g}$ which defines the tangent space of $\mathcal{G}$ at the identity element of the group. Both $\mathcal{G}$ and $\mathfrak{g}$ have the same dimensions $n \times n$. A linear map is used to map vector element into the Lie algebra $\mathfrak{g}$ of the group $\mathcal{G}$ \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    (\cdot)^{\wedge}: \mathbb{R}^{dim \mathfrak{g}} \rightarrow \mathfrak{g}
+    \label{eq: linear map to g}
+\end{equation}
+The Lie algebra associated with the $SE_2(3)$ is given as 
+\begin{equation}
+    \mathfrak{s e}_2(3) =\left\{\xi^{\wedge} = 
+    \begin{bmatrix}
+         \xi^R \\
+         \xi^v \\
+         \xi^p
+    \end{bmatrix}^{\wedge}
+        =\begin{bmatrix}
+    (\xi^R)_{\times} & \xi^v & \xi^p\\
+    0_{3 \times 1} & 1 & 0\\
+    0_{3 \times 1}  & 0 & 1
+    \end{bmatrix} \in \mathbb{R}^{5 \times 5}
+    \mid \xi^R, \xi^v, \xi^p \in \mathbb{R}^3\right\}
+    \label{eq: se_2(3) lie algebra}
+\end{equation}
+A mapping to the Lie group is done through the exponential map \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    \text{Exp} : \mathbb{R}^{dim g} \rightarrow \mathcal{G}
+    \label{eq: exp map}
+\end{equation}
+Where $\text{Exp}()$ is defined in terms of the matrix exponential $ \exp_m{(\cdot)}$ as follows
+\begin{equation}
+    \text{Exp}(\xi) = \exp_m{(\xi^{\wedge})}
+    \label{eq: matrix exp def}
+\end{equation}
+Note that in equation \eqref{eq: exp map}, the exponential $\text{Exp}{(\cdot)}$ is the matrix exponential $\exp_m{(\cdot)}$ of the Lie algebra element $(\xi)_{\times}$ which differs from the previous uses of $\exp{(\cdot)}$ used to take the exponential of a vector or scalar. Another key concept in Lie group theory is the adjoint representation, which is a linear map used to move vectors of the Lie algebra between tangent spaces of two group elements \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    Ad_X : \mathfrak{g} \rightarrow \mathfrak{g}
+    \label{eq: adj g->g}
+\end{equation}
+\begin{equation}
+    Ad_X(\xi^{\wedge}) = X \xi^{\wedge} X^{-1} = 
+    \begin{bmatrix}
+        R & \mathbf{0} &\mathbf{0} \\
+        (v)_{\times} & R & \mathbf{0}\\
+        (p)_{\times} & \mathbf{0} & R
+    \end{bmatrix}
+    \label{eq: Ad x xi x^T}
+\end{equation}
+
+The process model can evolve on a Lie group, excluding the bias states, with the Lie group defined in equation \eqref{eq: SE3_2 group} and the process dynamics defined as \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    \frac{d}{dt} X = f_{u}(X)
+    \label{eq: X diff process model}
+\end{equation}
+Here the deterministic system dynamics are rotation matrix, velocity, and position propagation in equations \eqref{eq:R dot}, \eqref{eq:v dot}, and \eqref{eq:p dot}. Two definitions of the state estimated error are possible depending on the right or left multiplication of $X^{-1}$ on to the estimated state $\hat{X}$. The left and right errors are defined with $L$ being a random element of the group \cite{Contact-Aided_Invarant_EKF}
+\begin{subequations}
+    \begin{align}
+        \eta^r &= \hat{X} X^{-1} = (\hat{X} L) (X L)^{-1} \quad \text{(Right Error)}\\
+        \eta^l &= X^{-1} \hat{X} =  (L X)^{-1} (L \hat{X}) \quad \text{(Left Error)}
+        \label{eq: left and right errors}
+    \end{align}
+\end{subequations}
+In both the QEKF and the InEKF, the right error corresponds to the world frame, while left error corresponds to the body frame. This distinction arises from the world-centric system dynamic equations used to model the IMU dynamics. This definition of left and right error is also applied to quaternions. The left error formulation is used when updating the nominal quaternion because the angular rate is measured in the body frame. The right error is used during the state update as the estimated angular error is in the world frame. 
+
+With the background provided so far, the following two important theorems from \cite{DBLP:journals/corr/BarrauB14} provide the essential guarantees for the InEKF.
+
+\begin{theorem}[State Independent Error Dynamics \cite{DBLP:journals/corr/BarrauB14}]
+A system is said to be group affine if $f_t(\cdot)$ satisfies
+\begin{equation}
+    f_u(X_1 X_2) = f_u(X_1) X_2 + X_1 f_u(X_2) - X_1 f_u(I) X_2
+    \label{eq: L invarient conditon}
+\end{equation}
+for all time $t > 0$ and $X_1, X_2 \in G$. If this condition is satisfied, the right and left invariant errors are trajectory independent and satisfy the following differential equations:
+\begin{align}
+    \frac{d}{dt} \eta^r(t) &= g_u(\eta_r(t)) = f_t(\eta^r(t)) + \eta^r(t) f_t(I_d), \\
+    \frac{d}{dt} \eta^l(t) &= g_u(\eta_l(t)) = f_t(\eta^l(t)) + f_t(I_d) \eta^l(t).
+\end{align}
+\end{theorem}
+Here $I_d \in \mathcal{G}$ and is the group identity element. This theorem defines state independent differential equations for the left and right errors making the error dynamics invariant subject to satisfying condition \eqref{eq: L invarient conditon}. This invariance of the estimation error means there will exist no dependence on the current state estimate removing all possible linearization errors. The right or left error can be linearized by the following equation with $A \in \mathbb{R}^{dim \mathfrak{g} \times dim \mathfrak{g}}$\cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    g_u(\text{Exp}(\xi)) = (A \xi)^{\wedge} + \mathcal{O}(\|\xi\|^2)
+    \label{eq: Linearization InEKF}
+\end{equation}
+For all $t \ge 0$, let $\xi$ be the solution of the linear differential equation \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    \frac{d}{dt} \xi = A \xi 
+    \label{eq: xi diffEq}
+\end{equation}
+\begin{theorem}[Log-Linear Property of Error \cite{DBLP:journals/corr/BarrauB14}]
+\label{th: Log-Linear Property of Error}
+Consider the right or left invariant error, $\eta$, between any two trajectory. For arbitrary initial error $\xi_o \in \mathbb{R}^{dim \mathfrak{g}}$, if $\eta_0 = \text{Exp}(\xi_0)$, then for all $t \ge 0$
+\begin{equation}
+    \eta = \text{Exp}(\xi)
+    \label{eq: eta to exp xi}
+\end{equation}
+Thus, the nonlinear estimation error $\eta$ can be precisely recovered from the the time-varying linear differential equation \eqref{eq: xi diffEq}
+\end{theorem}
+Therefore these error dynamics allow the left or right error invariant error on the Lie group to be exactly recovered. This allows for the covariance to be exactly propagated in the case without any noise.
+
+\subsection{Process Model}
+The InEKF is based upon the theoretical background described in the previous section. However, the noise and biases must be considered in the formulation of the system dynamics. This results in decoupling the states into a state tuple. This state tuple consists of a Lie group defined for $SE_2(3)$ \eqref{eq: SE3_2 group} and parameter vector for the biases. The error state dynamics are then defined through a linearization of the group error $\eta^r$. The choice of a Right InEKF model for propagation is used such that the error is in the world frame. 
+
+As determined in \cite{DBLP:journals/corr/BarrauB14}, there is no Lie group that can include the bias states and meets the group affine property \eqref{eq: L invarient conditon}. Therefore, an inexact InEKF is designed so that the bias states can be included. A parameter vector $\Theta$ can be estimated as part of the Right InEKF state \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    \Theta = \begin{bmatrix}
+        b^{\omega} \\
+        b^a
+    \end{bmatrix}  \in \mathbb{R}^6
+    \label{eq: Theta RInEKF}
+\end{equation}
+The state tuple model can now be written as the Lie group and parameter vector \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    e^r = (\eta^r, \zeta) = (\hat{X} X^{-1}, \hat{\Theta} - \Theta) \in \mathbb{R}^{5 \times 5} \times \mathbb{R}^6
+    \label{eq: e^r state tuple}
+\end{equation}
+Where the right Lie group error $\eta^r$ is defined as
+\begin{equation}
+    \eta^r = \hat{X} X^{-1} = 
+        \begin{bmatrix}
+            \hat{R} & \hat{v} & \hat{p}\\
+            0_{3 \times 1} & 1 & 0\\
+            0_{3 \times 1} & 0 & 1
+        \end{bmatrix}
+        \begin{bmatrix}
+            R^T & -R^T v & -R^T p \\
+            0_{3 \times 1} & 1 & 0\\
+            0_{3 \times 1} & 0 & 1
+        \end{bmatrix} =
+        \begin{bmatrix}
+            \hat{R} R^T & \hat{v} - \hat{R} R^T v & \hat{p} - \hat{R} R^T p\\
+            0_{3 \times 1} & 1 & 0\\
+            0_{3 \times 1} & 0 & 1
+        \end{bmatrix}
+    \label{eq: eta^r full}
+\end{equation}
+and the parameter error vector is
+\begin{equation}
+    \zeta = 
+        \begin{bmatrix}
+            \zeta^{b \omega} \\
+            \zeta^{b a}
+        \end{bmatrix}
+        =
+        \begin{bmatrix}
+            \hat{b}^{\omega} - b^{\omega} \\
+            \hat{b}^a - b^a
+        \end{bmatrix}
+    \label{eq: zeta error full}
+\end{equation}
+
+With noise, Theorem 2 [\ref{th: Log-Linear Property of Error}] no longer holds and the log of the invariant error, $\xi$, approximately satisfies the linear system for the right error dynamics \cite{Contact-Aided_Invarant_EKF}
+\begin{subequations}
+    \begin{align}
+        \frac{d}{dt} \begin{bmatrix}
+            \xi \\
+            \zeta
+        \end{bmatrix} &= A^r \begin{bmatrix}
+            \xi \\
+            \zeta
+        \end{bmatrix}  + \begin{bmatrix}
+            Ad_{\hat{X}} & 0_{9 \times 6} \\
+            0_{6 \times 9} & I_6
+        \end{bmatrix} w  = A^r \begin{bmatrix}
+            \xi \\
+            \zeta
+        \end{bmatrix} + Ad_{(\hat{X},\hat{\Theta})} w\label{eq: updated adjoint}\\
+        \eta^r &= \text{Exp}(\xi) \label{eq: ct right xi diffEq}
+    \end{align}
+\end{subequations}
+Here the noise $w$ is defined as
+\begin{equation}
+    w = \begin{bmatrix}
+    w^{\omega} \\
+    w^{a} \\
+    0_{3 \times 1} \\
+    w^{b \omega} \\
+    w^{b a}
+    \end{bmatrix} \label{eq: w RInEKF}
+\end{equation}
+Note that when incorporating the noise, the adjoint is used in the right error model. This is done because the noise is defined for the Lie algebra in the body frame. Therefore, because the right error model is in the world frame, the adjoint is used to move the body noise into the world frame. 
+
+In order to determine the continuous time state transition matrix $A^r$ \eqref{eq: updated adjoint}, the error dynamics $e^r$ \eqref{eq: e^r state tuple} must be differentiated
+\begin{equation}
+    \frac{d}{dt} e^r = (\frac{d}{dt} \eta^r, \begin{bmatrix}
+        w^{b \omega} \\
+        w^{b a}
+    \end{bmatrix})
+    \label{eq: e derivative}
+\end{equation}
+Once differentiated, the error dynamics of the Lie group must be linearized which utilizes the following first order approximation 
+\begin{equation}
+    \eta^r = \text{Exp}(\xi) \approx I_d + (\xi)^{\wedge}
+    \label{eq: eta first order approx}
+\end{equation}
+Here $I_d$ is the identity matrix with dimension $d$ from the error $\xi \in \mathbb{R}^d$. This linearization is done each of Lie group errors. Using this approximation, the true values for the rotation is
+\begin{equation}
+    \begin{split}
+        \eta^R &= \hat{R} R^T  \\
+        R^T  &= \hat{R}^T \eta^R \\
+        R^T & \approx \hat{R}^T (I + (\xi^R)_{\times})\\
+        R &= (I + (\xi^R)_{\times})^T \hat{R}
+        \label{eq: approx true R InEKF}
+    \end{split}
+\end{equation}
+The true velocity can be approximated as
+\begin{equation}
+    \begin{split}
+        \eta^v & = \hat{v} - \hat{R} R^T v \\ 
+        \xi^v & = \hat{v} - \hat{R} R^T v \\ 
+        v &= (\hat{R} R^T)^T (-\xi^v + \hat{v}) \\
+        & \approx (I + (\xi^R)_{\times})^T (-\xi^v + \hat{v}) \\
+        & \approx -\xi^v + \hat{v} - \xi^R_{\times} \hat{v} \\
+        & = -\xi^v + \hat{v} + \hat{v}_{\times} \xi^R
+        \label{eq: approx true v InEKF}        
+    \end{split}
+\end{equation}
+Additionally, the true position is approximated as
+\begin{equation}
+    \begin{split}
+        \eta^p & = \hat{p} - \hat{R} R^T p \\ 
+        \xi^p & = \hat{p} - \hat{R} R^T p \\ 
+        p &= (\hat{R} R^T)^T (-\xi^p + \hat{p}) \\
+        & \approx (I + (\xi^R)_{\times})^T (-\xi^p + \hat{p}) \\
+        & \approx -\xi^p + \hat{p} - \xi^R_{\times} \hat{p} \\
+        & = -\xi^p + \hat{p} + \hat{p}_{\times} \xi^R
+        \label{eq: approx true p InEKF}        
+    \end{split}
+\end{equation}
+Using these approximations and neglecting second-order error terms, the linearization of the differentiated right Lie group error is possible. The resulting rotational error is
+\begin{equation}
+    \begin{split}
+        \frac{d}{dt} \eta^R &= \frac{d}{dt} (\hat{R} R^T) \\
+        \frac{d}{dt} (I + \xi^R_{\times}) &\approx \frac{d}{dt} (\hat{R} R^T) \\
+        \frac{d}{dt} (\xi^R)_{\times} &= \dot{\hat{R}} R^T + \hat{R} \dot{R}^T \\
+        &= \hat{R} (\Tilde{\omega} - \hat{b}^{\omega})_{\times} R^T + \hat{R} (R (\Tilde{\omega} -b^{\omega} - w^{\omega})_{\times})^T \\
+        &\approx  \hat{R} (\Tilde{\omega} - \hat{b}^{\omega})_{\times} \hat{R}^T (I + (\xi^R)_{\times}) + \hat{R} [((I + (\xi^R)_{\times})^T \hat{R} ) (\Tilde{\omega} -b^{\omega} - w^{\omega})_{\times})]^T \\
+        &= \hat{R} (\Tilde{\omega} - \hat{b}^{\omega})_{\times} \hat{R}^T +
+            \hat{R} (\Tilde{\omega} - \hat{b}^{\omega})_{\times} \hat{R}^T (\xi^R)_{\times} - 
+            \hat{R} [ (\Tilde{\omega} -b^{\omega} - w^{\omega})_{\times}) (\hat{R}^T (I + (\xi^R)_{\times}))]\\
+        &\approx \hat{R} (\Tilde{\omega} - \hat{b}^{\omega})_{\times} \hat{R}^T - 
+           \hat{R} (\Tilde{\omega} -b^{\omega} - w^{\omega})_{\times}) \hat{R}^T \\
+       &= \hat{R} (-\zeta^{\omega} + w^{\omega})_{\times} \hat{R}^T \\
+       &= (\hat{R} (-\zeta^{\omega} + w^{\omega}))_{\times} \\
+       \frac{d}{dt} \xi^R &=  (\hat{R} (-\zeta^{\omega} + w^{\omega}))
+        \label{eq: R linearized RInEKF}
+    \end{split}
+\end{equation}
+Note that the following property is  used when taking the transpose of vector that is skewed
+\begin{equation}
+    (V)_{\times}^T = -V_{\times}
+    \label{eq: transpose of skew}
+\end{equation}
+Here the vector $V$ is defined as $V \in \mathbb{R}^3$. Additionally, the following property is used to reorganize the terms
+\begin{equation}
+    R (V)_{\times} R^T = (R V)_{\times}
+    \label{eq: RvR^T property}
+\end{equation}
+The derived velocity approximations and second-order terms can also be used to linearize the velocity error
+\begin{equation}
+    \begin{split}
+        \frac{d}{dt} \eta^v &= \frac{d}{dt} (\hat{v} - \hat{R} R^T v) \\
+        \frac{d}{dt} (I + \xi^v) &\approx \frac{d}{dt} (\hat{v} - \hat{R} R^T v) \\
+        \frac{d}{dt} \xi^v &= \dot{\hat{v}} - \dot{\hat{R}}R^Tv - \hat{R} \dot{R}^T v - \hat{R} R^T \dot{v}\\
+        &= \hat{R} (\Tilde{a} - \hat{b}^a)_{\times} + g -
+            (\dot{\hat{R}}R^T + \hat{R} \dot{R}^T)v -
+            \hat{R} R^T (R (\Tilde{a} - b^a - w^a) + g) \\
+        &\approx \hat{R} (\Tilde{a} - \hat{b}^a)_{\times} + g -
+            \hat{R} (-\zeta^{\omega} + w^{\omega})_{\times} v -
+            \hat{R}((\Tilde{a} - b^a - w^a) + R^T g) \\
+        &= (v)_{\times} \hat{R} (-\zeta^{\omega} + w^{\omega}) + g +
+            \hat{R} (-\zeta^{a} + w^{a}) -
+            \hat{R} R^T g \\
+        &\approx  (-\xi^v + \hat{v} + \hat{v}_{\times} \xi^R)_{\times} \hat{R} (-\zeta^{\omega} - w^{\omega}) +
+            \hat{R} (-\zeta^{a} + w^{a}) + g -
+            (I + (\xi^R)_{\times})g \\
+        &\approx (\hat{v}_{\times}) \hat{R} (-\zeta^{\omega} + w^{\omega}) +
+            \hat{R} (-\zeta^{a} + w^{a}) -
+            (\xi^R)_{\times} g \\
+        &= (g)_{\times} \xi^R + 
+            (\hat{v}_{\times}) \hat{R} (-\zeta^{\omega} + w^{\omega}) +
+              \hat{R} (-\zeta^{a} - w^{a})
+        \label{eq: v linearized RInEKF}
+    \end{split}
+\end{equation}
+Lastly, the position error is derived as follows
+\begin{equation}
+    \begin{split}
+        \frac{d}{dt} \eta^p &= \frac{d}{dt} (\hat{p} - \hat{R} R^T p) \\
+        \frac{d}{dt} (I + \xi^p) &\approx \frac{d}{dt} (\hat{p} - \hat{R} R^T p) \\
+        \frac{d}{dt} \xi^p &= \dot{\hat{p}} - \dot{\hat{R}}R^Tp - \hat{R} \dot{R}^T p - \hat{R} R^T \dot{p}\\
+        &\approx \hat{v} - (\dot{\hat{R}}R^T + \hat{R} \dot{R}^T)p - (I +\xi^R_{\times})v\\
+        &\approx \hat{v} + (-\xi^p + \hat{p} + \hat{p}_{\times} \xi^R)_{\times} (\hat{R} (-\zeta^{\omega} + w^{\omega}))  - (I +\xi^R_{\times}) (-\xi^v + \hat{v} + \hat{v}_{\times} \xi^R)_{\times}\\
+        &\approx \xi^v + (\hat{p})_{\times} (\hat{R} (-\zeta^{\omega} + w^{\omega})_{\times})
+    \end{split}
+    \label{eq: p linearized RInEKF}
+\end{equation}
+
+With these linearization the right continuous time matrix $A^r$ for the error dynamics can be defined for the error propagation equation \eqref{eq: updated adjoint}
+\begin{equation}
+    A^r = \begin{bmatrix}
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & -\hat{R} & \mathbf{0} \\
+        (g)_{\times} & \mathbf{0} & \mathbf{0} & -(\hat{v})_{\times} \hat{R} & -\hat{R} \\
+        \mathbf{0} & I & \mathbf{0} & -(\hat{p})_{\times} \hat{R} & \mathbf{0} \\
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
+    \end{bmatrix}
+    \label{eq: A^r RInEKF}
+\end{equation}
+Note that with the inclusion of the biases in $A^r$ means the matrix must be linearized about the current state for each time step. Without the biases this is not required and $A^r$ is invariant for error propagation. In order to discretize $A^r$, a Euler approximation can be used which was also done for the quaternion Kalman Filter
+\begin{equation}
+    \begin{split}
+        F^r &= \exp(A^r) \approx I_{15} + \Delta t A^r \\
+            &= \begin{bmatrix}
+            I & \mathbf{0} & \mathbf{0} & -\Delta t \hat{R} & \mathbf{0} \\
+            \Delta t (g)_{\times} & I & \mathbf{0} & - \Delta t (\hat{v})_{\times} \hat{R} & -\Delta t \hat{R} \\
+            \mathbf{0} & \Delta t I & I & -\Delta t (\hat{p})_{\times} \hat{R} & \mathbf{0} \\
+            \mathbf{0} & \mathbf{0} & \mathbf{0} & I & \mathbf{0} \\
+            \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} & I \\
+        \end{bmatrix}
+        \label{eq: F^r RInEKF}
+    \end{split}
+\end{equation}
+The process covariance matrix $Q$ is defined using the updated adjoint definition in equation \eqref{eq: updated adjoint} along with the previously specified noise \eqref{eq: w RInEKF}, now discretized (indicated by d) from table \eqref{tab: Measurement Noise Statistics}
+\begin{equation}
+    Q^r = Ad_{(\hat{X},\hat{\Theta})} \mathrm{Cov}(w_d) (Ad_{(\hat{X},\hat{\Theta})})^T
+    \label{eq: Q RInEKF}
+\end{equation}
+For the propagation of the state variables, the input vector is defined as follows
+\begin{equation}
+        u_k = \begin{bmatrix}
+            \Tilde{\omega}_k \\
+             \Tilde{a}_k \\
+        \end{bmatrix} 
+    \label{eq: inputs IMU InEKF}
+\end{equation}
+The process model $f_\text{InEKF}(X_{k-1},\Theta_{k-1},u_{k-1})$ is then used to propagate the states from step $k-1$ to $k$ and is defined by the following equations
+\begin{subequations}
+    \label{eq: f InEKF}
+    \begin{align}
+        R_k &= R_{k-1} \exp{( (\Tilde{\omega}_{k-1} - b^{\omega}_{k-1})_{\times} \Delta t)}\\
+        v_k &= v_{k-1} + g \Delta t + R_{k-1} (\Tilde{a}_{k-1} - b^{a}_{k-1}) 
+        \left( I \Delta t + \frac{1}{2} \Delta t^2 (\Tilde{\omega}_{k-1} - b^{\omega}_{k-1})_{\times} \right) \label{eq:v for f InEKF} \\
+        p_k &= \bar{p}_{k-1} + \frac{1}{2} g \Delta t^2 + R_{k-1} (\Tilde{a}_{k-1} - b^{a}_{k-1}) 
+        \left( I \Delta t^2 + \frac{1}{2} \Delta t^3 (\Tilde{\omega}_{k-1} - b^{\omega}_{k-1})_{\times} \right) \label{eq:p for f InEKF} \\
+        b^{\omega}_{k} &= b^{\omega}_{k-1} \label{eq:b^(omega) for f InEKF}\\
+        b^{a}_{k} &= b^{a}_{k-1} \label{eq:b^a for f InEKF} 
+    \end{align}
+\end{subequations}
+
+\subsection{Measurement Model}
+The GPS measurement is collected relative to a world frame. This makes the update for the InEKF more difficult because the Right InEKF measurement update requires a measurement in the body frame while propagating the state covariance in the world frame. Therefore, the Left InEKF is required for the measurement update. This can be accomplished by switching the Right InEKF covariance to the Left InEKF using the adjoint. After performing the update to the left covariance, the left covariance can then be switched back to the right covariance for propagation. The derivation for switching between the left and right error is as follows \cite{Contact-Aided_Invarant_EKF} using the original definition of the adjoint defined in this report \eqref{eq: Ad x xi x^T} 
+\begin{equation}
+    \begin{split}
+        \eta^r &= \hat{X} X^{-1} = \hat{X} \eta^l \hat{X}^{-1} \\
+        \text{Exp}(\xi^r) &= \hat{X} \text{Exp}(\xi^l) \hat{X}^{-1} = \text{Exp}(Ad_{\hat{X}} \xi^l) \\
+        \xi^r &= Ad_{\hat{X}} \xi^l
+    \end{split}
+    \label{eq: xi^l -> xi^r}
+\end{equation}
+The right covariance matrix conversion is then
+\begin{equation}
+    \begin{split}
+        P^r &= \mathrm{E}[\xi^r (\xi^r)^T] \\
+            &= Ad_{\hat{X}} \mathrm{E}[\xi^l (\xi^l)^T] Ad_{\hat{X}}^T \\
+            &= Ad_{\hat{X}} P^l Ad_{\hat{X}}^T
+        \label{eq: Adj no bias left to right}
+    \end{split}
+\end{equation}
+\begin{equation}
+    \begin{split}
+        P^r &= Ad_{\hat{X}} P^l Ad_{\hat{X}}^T \\
+        P^l &= Ad_{\hat{X}^{-1}} P^r (Ad_{\hat{X}^{-1}})^T 
+        \label{eq: Adj no bias left to right with bias}
+    \end{split}
+\end{equation}
+Because biases are used in the error, the switching of the covariances can be accomplished with the following equations with the updated version of the adjoint $Ad_{(\hat{X},\Theta)}$ \eqref{eq: updated adjoint}
+\begin{subequations}
+    \begin{align}
+        P^l &= Ad_{(\hat{X}^{-1},\hat{\Theta})} P^r Ad_{(\hat{X}^{-1},\hat{\Theta})}^T 
+        \label{eq: Switch covariance left/right} \\
+        P^r &= Ad_{(\hat{X},\hat{\Theta})} P^l Ad_{(\hat{X},\hat{\Theta})}^T 
+        \label{eq: Switch covariance right/left}
+    \end{align}
+\end{subequations}
+Note that this conversion is imperfect but without the bias this conversion is exact. 
+
+The left measurement model takes the following form \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    \Tilde{y}^l = \hat{X} b + \nu
+    \label{eq: left measurement form}
+\end{equation}
+In the Left InEKF, the measurement $\Tilde{y}$ and the constant vector b used to relate the Lie group to the measurement are defined as 
+\begin{equation}
+    \Tilde{y} = \begin{bmatrix}
+        \Tilde{y}_p \\
+        0 \\
+        1
+    \end{bmatrix}
+    \label{eq: y meas LInEKF}
+\end{equation}
+\begin{equation}
+    b = \begin{bmatrix}
+        0_{4 \times 1} \\
+        1
+    \end{bmatrix}
+    \label{eq: b LInEKF}
+\end{equation}
+The Kalman filter update uses the measurement Jacobian $H$. To relate the $H$ to $b$ and the Lie group state $X$, the following approximation can be done by rearranging equation \eqref{eq: y meas LInEKF} for the measurement innovation $\nu$
+\begin{equation}
+    \begin{split}
+        \nu &= \hat{X}^{-1} \Tilde{y} - b \\
+            &= \hat{X}^{-1} (X b + \nu) - b \\
+            &= (\eta^l)^{-1} b + \hat{X}^{-1} \nu - b \\
+            &\approx (I + (\xi^l)_{\times})^T b + \hat{X}^{-1} \nu - b \\
+            &= -(\xi^l)_{\times} b + \hat{X}^{-1} \nu  \\
+            &\Rightarrow (\xi^l)_{\times} b + \hat{X}^{-1} \nu \triangleq H \xi^l + \hat{X}^{-1} \nu
+        \label{eq: H proof for LInEKF}
+    \end{split}
+\end{equation}
+Note that the innovation can be reduced in dimensions by dropping the last two rows with zeros
+\begin{equation}
+    \begin{split}
+        \nu &= \hat{X}^{-1} \Tilde{y} - b\\
+        &= \begin{bmatrix}
+            \hat{R}^T & -\hat{R}^T \hat{v} & -\hat{R}^T \hat{p} \\
+            0 & 1 & 0\\
+            0 & 0 & 1
+        \end{bmatrix}
+        \begin{bmatrix}
+            \Tilde{y}_p \\
+            0 \\
+            1
+        \end{bmatrix}
+        - 
+        \begin{bmatrix}
+            0_{3 \times 1} \\
+            0 \\
+            1
+        \end{bmatrix} \\
+        &= 
+        \begin{bmatrix}
+            -\hat{R}^T \Tilde{y}_p \\
+            0 \\
+            0
+        \end{bmatrix} \\
+        &\triangleq -\hat{R}^T \Tilde{y}_p
+    \end{split}
+    \label{eq: innovation meas LInEKF}
+\end{equation}
+Therefore, the innovation can be updated simplified by including a selection matrix \cite{DBLP:journals/corr/BarrauB14} $\Pi = \begin{bmatrix}
+    I & 0_{3 \times 2} \end{bmatrix}$
+\begin{equation}
+    \nu = \hat{X}^{-1} \Tilde{y} - b \triangleq \Pi \hat{X}^{-1} \Tilde{y}
+    \label{eq: reduced measurement residual}
+\end{equation} 
+Inspecting equation \eqref{eq: H proof for LInEKF}, H can be defined as follows and then reduced in a similar manner as done for the innovation
+\begin{equation}
+    H = \begin{array}{c}
+        \begin{bmatrix}
+            0_{3 \times 6} & I & 0_{3 \times 6} \\
+            \multicolumn{3}{c}{0_{4 \times 15}}
+        \end{bmatrix} \triangleq \begin{bmatrix}
+        0_{3 \times 6} & I & 0_{3 \times 6}
+    \end{bmatrix}
+    \end{array}
+    \label{eq: H full for LInEKF}
+\end{equation}
+The dimensions of the measurement noise matrix $N$ can be also be reduced. For the left invariant form of the measurement noise matrix can be simplified to be $\mathbb{R}^{3 \times 3}$ matrix. The left invariant error is defined as follows \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    V^l = \hat{R}^{-1} \mathrm{cov}(\nu) \hat{R} = \hat{R}^T \sigma_{\Tilde{y}_p}^2 \hat{R}
+\end{equation}
+
+During the correction step of the Kalman filter, distinctions must be made between the Lie group states $X$ and the bias states $\Theta$ in the state tuple. Once the Kalman gain is calculated, the gain can be split up into gain for the Lie group $K^{\xi} \in \mathbb{R}^{9 \times 3}$ and bias states $K^{\zeta} \in \mathbb{R}^{6 \times 3}$
+\begin{equation}
+    K = \begin{bmatrix}
+        K^{\xi} \\
+        K^{\zeta}
+    \end{bmatrix}
+    \label{eq: Kalman gain for LInEKF}
+\end{equation}
+Using these gains the state tuple can be updated. The typical update for vectors can be used for the bias states. However, in order to update the Lie group $X$, the error state $\xi$ must be mapped to the Lie group. This can be done using the exponential map and skew operator as shown in equations \eqref{eq: exp map} and \eqref{eq: matrix exp def}. Once mapped, the Lie group $X$ can be updated through matrix multiplication
+\begin{equation}
+    \left( \hat{X}_k^+, \hat{\Theta}_k^+, \right) = 
+    \left( \hat{X}_k \, \text{Exp} \left( K^{\xi}_k \, \big(\Pi \hat{X}_k^{-1} \Tilde{y}_k \big) \right), 
+    \, \hat{\Theta}_k + K_k^{\zeta} \left( \Pi \hat{X}_k^{-1} \Tilde{y}_k \right) \right)
+    \label{eq: state tuple correction update}
+\end{equation}
+
+\subsection{Initialization of Covariance}
+The covariance for the QEKF and the InEKF filters do not represent the same underlying distribution because the error defined in the InEKF is defined for the Lie algebra. Therefore, a conversion between the covariances is required so that the initial covariances are at least approximately equal. Furthermore, this conversion can be used to compare the uncertainties estimated in the states between the filters, however, in this report this conversion will only be used for initialization.
+
+The attitude error for the quaternion $\delta \theta$, defined in the world frame, is equivalent to the rotation error $\xi^R$ for the Right InEKF. The velocity and position errors are not equivalent. The following first order conversions from the quaternion error to the Right InEKF error are as follows \cite{Contact-Aided_Invarant_EKF}
+\begin{equation}
+    \begin{split}
+        \eta^v &= \hat{v} - \hat{R} R^T v \\
+        \xi^v &\approx \hat{v} - (I + (\xi^R)_{\times}) v \\
+        \xi^v &= \hat{v} - v - (\xi^R)_{\times} v \\
+        \xi^v &= -\delta v + (v)_{\times} \xi^R
+    \end{split}
+    \label{eq: quaternion velocity -> RInEKF velocity}
+\end{equation}
+\begin{equation}
+    \begin{split}
+        \eta^p &= \hat{p} - \hat{R} R^T p \\
+        \xi^p &\approx \hat{p} - (I + (\xi^R)_{\times}) p \\
+        \xi^p &= \hat{p} - p - (\xi^R)_{\times} p \\
+        \xi^p &= -\delta p + (p)_{\times} \xi^R
+    \end{split}
+    \label{eq: quaternion position -> RInEKF position}
+\end{equation}
+Using equation \eqref{eq: quaternion velocity -> RInEKF velocity}, the initial covariance for the QEKF can be used to approximate the initial covariance for the InEKF for the velocity
+\begin{equation}
+    \begin{split}
+        \mathbb{E}[\xi_0^v (\xi_0^v)^T] &\approx \mathbb{E}[( -\delta v_0 + (v_0)_{\times} \xi_0^R) ( -\delta v_0 + (v_0)_{\times} \xi_0^R)^T]\\ 
+        &= \mathbb{E}[\delta v_0 \delta v_0^T - 
+            \delta v_0 (\xi_0^R)^T (v_0)_{\times}^T  -
+            (v_0)_{\times} \xi_0^R \delta v_0^T +
+            (v_0)_{\times} \xi_0^R (\xi_0^R)^T (v_0)_{\times}^T
+            ]\\
+        &= \mathbb{E}[\delta v_0 \delta v_0^T] 
+            + (v_0)_{\times} \mathbb{E}[\xi_0^R (\xi_0^R)^T] (v_0)_{\times}^T \\
+        P_{\xi^v_0} &= P_{\delta v_0} + (v_0)_{\times} P_{\xi^R_0} (v_0)_{\times}^T
+        \label{eq: v initial covariance InEKF}
+    \end{split}
+\end{equation}
+Note that the errors are assumed to be independent and have a mean of zero. The proof is essentially the same for the initial position covariance. The conversion for position is the following
+\begin{equation}
+    P_{\xi^p_0} = P_{\delta p_0} + (p_0)_{\times} P_{\xi^R_0} (p_0)_{\times}^T
+    \label{eq: p initial covariance InEKF}
+\end{equation}
+
+
+\subsection{Algorithm}
+The Invariant Extended Kalman filter is summarized with the following pseudo code in the algorithm below. The initial state and covariance are first defined where the covariance uses conversions in the previous section. If IMU measurements are available the state and covariance are propagated. If a GPS measurement is received, the algorithm uniquely has to switch from the right to left covariance. The update steps for the left measurement model are then followed ending a with a switch back to the right covariance so that the uncertainty in the error states is in the world frame.
+
+\RestyleAlgo{ruled}
+\begin{algorithm}[H]
+\caption{Invariant EKF}\label{alg: InEKF}
+$P^r_0 \xleftarrow{\text{Convert}} \Sigma_{0};$ \tcp{See equations \eqref{eq: v initial covariance InEKF} and \eqref{eq: p initial covariance InEKF}}
+$(\hat{X}_0, \hat{\Theta}_0 ) = x_0;$ \tcp{See equations \eqref{eq: SE3_2 group} and \eqref{eq: Theta RInEKF}}
+
+\While{$receiving$ $measurements$}{
+    \If{$IMU$ $measurement$}{
+        $(\hat{X}_k, \hat{\Theta}_k) = f_\text{InEKF}(\hat{X}_{k-1},\hat{\Theta}_{k-1},u_{k-1});$ \tcp{See equations in \eqref{eq: f InEKF}}
+        $F_k = I_{15} + \Delta t A^r \big|_{\hat{X}_{k-1}}$\;
+        $Q^r_k = Ad_{(\hat{X}_k,\hat{\Theta}_k)} \mathrm{Cov}(w_d) (Ad_{(\hat{X}_k,\hat{\Theta}_k)})^T $\;
+        $P^r_k = F^r_k P^r_{k-1} (F^r_k)^T + Q^r_k;$ %\tcp{See equation \eqref{eq: Q RInEKF} for $Q^r$ definition}
+    }
+    \If{$GPS$ $measurement$}{
+        $ P^l_k = Ad_{(\hat{X}^{-1}_k,\hat{\Theta}_k)} P^r_k Ad_{(\hat{X}^{-1}_k,\hat{\Theta}_k)}^T $\;
+        $V^l_k = \hat{R}_k^T \sigma_{\Tilde{y}_p}^2 \hat{R}_k$\;
+        $S = H^l P^l_k (H^l)^T + V^l_k$\;
+        $(K^{\xi}, K^{\zeta}) = K = P^l_k (H^l)^T S^{-1}$\;
+        $\hat{X}_k^+ = \hat{X}_k \text{Exp} ( K^{\xi}_k \, \big(\Pi \hat{X}_k^{-1} \Tilde{y}_k)$\;
+        $\hat{\Theta}_k^+ = \hat{\Theta}_k + K_k^{\zeta} ( \Pi \hat{X}_k^{-1} \Tilde{y}_k)$\;
+        $P^{l +}_k = (I - K H) P^l_k (I-K H)^T + K N^l K^T$\;
+        $P^{r +}_k =  Ad_{(\hat{X}_k^+,\hat{\Theta}_k^+)} P^{l +}_k Ad_{(\hat{X}_k^+,\hat{\Theta}_k^+)}^T $
+    }
+}
+\end{algorithm}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% To do:
+% -> contrast more against quaternions
+% -> I_{n} or I_{n \times m}? Use which one?
+% -> Observability analysis
+% -> Is the innovation derivation right, shows up on both sides?
+% -> Other ways to define Q? Q = F ad cov(v) ad F^T. This is if w is defined in continous time
+% -> Update Q with X_k-1 or X_k
+% -> Don't need Delta t times Q
+% -> Does Lie group need to be renormalized to statisfy the constraits of det(R) = 1 (example)?
