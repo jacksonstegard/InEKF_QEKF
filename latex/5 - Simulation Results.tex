@@ -111,17 +111,17 @@ The position, velocity, and attitude states were tracked across each Monte Carlo
     \cline{2-5}
     & \textbf{Mean QEKF} & \textbf{Mean InEKF} & \textbf{Max QEKF} & \textbf{Max InEKF} & \\
     \hline
-    Position X & 1.2989 & 1.2776 & 9.2388 & 9.2800 & $m$ \\
-    Position Y & 0.8957 & 1.1556 & 4.5489 & 5.3071 & $m$ \\
-    Position Z & 0.8720 & 1.6427 & 3.6690 & 11.6371 & $m$ \\
+    Position X & 1.2989 & 1.2205 & 9.2388 & 9.2800 & $m$ \\
+    Position Y & 0.8957 & 0.8579 & 4.5489 & 3.8393 & $m$ \\
+    Position Z & 0.8720 & 0.8396 & 3.6690 & 11.6386 & $m$ \\
     \hline
-    Velocity X & 1.4704 & 1.3491 & 10.8342 & 10.8531 & $\frac{m}{s}$ \\
-    Velocity Y & 0.8594 & 1.0273 & 3.7589 & 3.9767 & $\frac{m}{s}$ \\
-    Velocity Z & 0.3489 & 0.8124 & 5.8320 & 10.3530 & $\frac{m}{s}$ \\
+    Velocity X & 1.4704 & 1.3089 & 10.8342 & 10.8531 & $\frac{m}{s}$ \\
+    Velocity Y & 0.8594 & 0.7439 & 3.7589 & 3.1248 & $\frac{m}{s}$ \\
+    Velocity Z & 0.3489 & 0.3536 & 5.8320 & 10.3547 & $\frac{m}{s}$ \\
     \hline
-    Attitude X & 2.6254 & 2.0862 & 19.5816 & 18.0105 & $deg$ \\
-    Attitude Y & 4.5363 & 3.7804 & 59.7614 & 52.4701 & $deg$ \\
-    Attitude Z & 26.9152 & 19.6650 & 43.5164 & 44.3899 & $deg$ \\
+    Attitude X & 2.6254 & 2.2281 & 19.5816 & 18.0167 & $deg$ \\
+    Attitude Y & 4.5363 & 4.0555 & 59.7614 & 52.4789 & $deg$ \\
+    Attitude Z & 26.9152 & 23.6016 & 43.5164 & 53.0185 & $deg$ \\
     \hline
 \end{tabular}
 \caption{Monte Carlo Error Metrics for QEKF and InEKF Filters}
@@ -129,10 +129,15 @@ The position, velocity, and attitude states were tracked across each Monte Carlo
 \end{table}
 
 
-\subsection{Discussion}
-The purpose of these simulations was to in part determine how well the InEKF performed compared to the more standard QEKF filter. In the InEKF plots, it is clear that quick convergence of the states does not occur despite results found in \cite{Contact-Aided_Invarant_EKF} and \cite{9444664}. This can be attributed to several factors which highlight issues that occur when the theoretical advantages of the InEKF are no longer true. One cause is the bias augmentation to the InEKF. The InEKF needs to be linearized around the current state just like the QEKF due to the bias states. Therefore, having a bad initialization of the state does affect the filter because its error is no longer invariant. Another issue is the lack of observability due to only using GPS position measurement and structure of the state transition matrix. This unobservability affects the bias random walk states causing drift as well as the attitude states. Another issue with the InEKF is having to switch between the right and left InEKF filters which is not exact for the bias augmented system. While exact when just estimating the state defined for the Lie group \eqref{eq: SE3_2 group}, the inclusion the parameter bias vector means that each switch from the right propagation form to the left measurement form induces some error. 
 
-Directly comparing the two filters, the mean error in the position and velocity is relatively similar besides in the vertical z components where the QEKF performed considerably better than the InEKF. For the attitudes, the InEKF performs moderately better across all attitudes. The error is found to be much larger in the z attitude due to unobservability of the state, however, it is found that the error propagated for the z attitude is less for the InEKF. Overall, the differences between the two filters, within the constraints of this estimation problem, are not substantial enough to definitively conclude that one filter outperformed the other. Future simulations and modifications to the estimation problem, as mentioned in the conclusion section, could help differentiate which filter performs better.
+\subsection{Discussion}
+Using just the GPS position measurement, it is clear that both QEKF and InEKF suffer from unobservability. This affects the bias states (not shown) and causes certain states such as the attitude in the Z direction to incurred large errors. By adding more measurements, observability can be improved and this issues can be reduced.
+
+Despite this issue, the QEKF and InEKF results can still be compared. In the InEKF plots, it is clear that quicker convergence of the states does occur which was also found in \cite{Contact-Aided_Invarant_EKF} and \cite{9444664}. This can be most clearly seen the in the velocity and attitude plots. This is due to the InEKF linearization being more accurate and being less sensitive to the initial errors as compared to the QEKF. Comparing the mean errors, the InEKF performs slightly better than the QEKF in all states besides in the Z velocity. This gives further confidence that the Lie group representation of the state does improve results because the rotation, velocity, and position are not decoupled like in the QEKF. Overall, the differences between the two filters were minor when using only GPS measurements. However, initial results suggest that the InEKF may hold an advantage over the QEKF. Future work incorporating additional measurements into the system will help clarify the extent of this advantage.
+
+%The purpose of these simulations was to in part determine how well the InEKF performed compared to the more standard QEKF filter. In the InEKF plots, it is clear that quick convergence of the states does not occur despite results found in \cite{Contact-Aided_Invarant_EKF} and \cite{9444664}. This can be attributed to several factors which highlight issues that occur when the theoretical advantages of the InEKF are no longer true. One cause is the bias augmentation to the InEKF. The InEKF needs to be linearized around the current state just like the QEKF due to the bias states. Therefore, having a bad initialization of the state does affect the filter because its error is no longer invariant. Another issue is the lack of observability due to only using GPS position measurement and structure of the state transition matrix. This unobservability affects the bias random walk states causing drift as well as the attitude states. Another issue with the InEKF is having to switch between the right and left InEKF filters which is not exact for the bias augmented system. While exact when just estimating the state defined for the Lie group \eqref{eq: SE3_2 group}, the inclusion the parameter bias vector means that each switch from the right propagation form to the left measurement form induces some error. 
+
+%Directly comparing the two filters, the mean error in the position and velocity is relatively similar besides in the vertical z components where the QEKF performed considerably better than the InEKF. For the attitudes, the InEKF performs moderately better across all attitudes. The error is found to be much larger in the z attitude due to unobservability of the state, however, it is found that the error propagated for the z attitude is less for the InEKF. Overall, the differences between the two filters, within the constraints of this estimation problem, are not substantial enough to definitively conclude that one filter outperformed the other. Future simulations and modifications to the estimation problem, as mentioned in the conclusion section, could help differentiate which filter performs better.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %To do:

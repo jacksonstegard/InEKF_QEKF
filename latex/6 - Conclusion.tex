@@ -2,7 +2,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Summary}
-This report explored how the Quaternion Extended Kalman Filter and Invariant Extended Kalman Filter compared in a drone state estimation simulation. Detailed background was provided for the IMU and GPS measurement models that were used to estimate the states of the drone. Background was then provided for both filters explaining the derivation each filter for the estimation problem. A Monte Carlo simulation was then conducted for each filter. From the results no clear filter performed better than the other. Both filters suffered from unobservability of certain states and the requirement to be linearized about the current state. Therefore, while the advantages of the InEKF are promising, these advantages are very dependent on the system being modeled and in the modeling of the drone model described in this report, reduced the InEKF to a comparable filter to the QEKF.
+This report explored how the Quaternion Extended Kalman Filter and Invariant Extended Kalman Filter compared in a drone state estimation simulation. Detailed background was provided for the IMU and GPS measurement models that were used to estimate the states of the drone. Background was then provided for both filters explaining the derivation of each filter for the estimation problem. A Monte Carlo simulation was then conducted for each filter. From the results, marginal improvements were seen in the InEKF but both filters suffered from unobservability in the bias states. Future work in adding additional measurements must be the next step in helping improve the observability of the system and the comparison between the two filters.
 
 
 \subsection{Future Work}
@@ -11,6 +11,7 @@ There are multiple different ways this report could be improved in the future. T
     \item Including a observability analysis for QEKF and InEKF to demonstrate which states are not observable.
     \item Adding new measurements to the current system. Currently, only GPS position is used to help correct the IMU measurements. Additional measurements could come from a magnetometer, barometer, and vision. For vision, the Mid-Air Dataset \cite{Fonder2019MidAir} provides various measurements such as stereo RGB pictures.
     \item Comparing body estimates of states could help give more insight into how the two filters compare. Currently, only the world frame estimate of the states are calculated.
+    \item Compare uncertainty estimates for each of the filters.
     \item Apply these filters to an actual drone with a IMU and GPS receiver
     \item Perform additional Monte Carlo trials that include using different trajectories for the drone
     \item Give a example of the InEKF using a simple system to demonstrate the possible invariant properties and show what the covariance in the Lie group vs. Lie algebra looks like

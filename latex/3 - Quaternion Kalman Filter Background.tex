@@ -286,7 +286,7 @@ With the GPS model being fairly simple the only partial in $ \frac{\partial x}{\
 \begin{equation}
     H = \begin{bmatrix}
         I & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
-        \multicolumn{5}{c}{0_{12 \times 12}}
+        \multicolumn{5}{c}{0_{12 \times 15}}
         \end{bmatrix}
     \label{eq: H quaternion full}
 \end{equation}
@@ -302,7 +302,7 @@ The full measurement $\Tilde{y} \in \mathbb{R}^{15}$ and the measurement covaria
 \begin{equation}
    N =  \begin{bmatrix}
         \sigma^2_{y_p} I & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
-        \multicolumn{5}{c}{0_{12 \times 12}}
+        \multicolumn{5}{c}{0_{12 \times 15}}
         \end{bmatrix}
     \label{eq: N quaternion}
 \end{equation}

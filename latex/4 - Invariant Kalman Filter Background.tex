@@ -9,7 +9,7 @@ In this section, a background on matrix Lie groups and Lie algebra is first desc
 \subsection{Background}
 A Lie group $\mathcal{G}$ is a set of elements that for a operation combine any two elements to form a third element that also is in the set. The set of elements satisfy four conditions named closure, associativity, identity, and inevitability detailed in \cite{book}. A widely used group is the Special Orthogonal Group $SO(3)$ which represents rotations defined as \cite{book}
 \begin{equation}
-    SO(3)=\left\{R \in \mathbb{R}^{3 \times 3} \mid R R^T=1, \operatorname{det} R=1\right\}
+    SO(3)=\left\{R \in \mathbb{R}^{3 \times 3} \mid R R^T=I, \operatorname{det} (R)=1\right\}
     \label{eq: SO3 group}
 \end{equation}
 The representation of pose can also be defined through the Special Euclidean Group which in the case of this paper will be the $SE_2(3)$ group defining the rotation matrix, velocity, and position as the entire pose
@@ -291,7 +291,7 @@ The derived velocity approximations and second-order terms can also be used to l
         &= (v)_{\times} \hat{R} (-\zeta^{\omega} + w^{\omega}) + g +
             \hat{R} (-\zeta^{a} + w^{a}) -
             \hat{R} R^T g \\
-        &\approx  (-\xi^v + \hat{v} + \hat{v}_{\times} \xi^R)_{\times} \hat{R} (-\zeta^{\omega} - w^{\omega}) +
+        &\approx  (-\xi^v + \hat{v} + \hat{v}_{\times} \xi^R)_{\times} \hat{R} (-\zeta^{\omega} + w^{\omega}) +
             \hat{R} (-\zeta^{a} + w^{a}) + g -
             (I + (\xi^R)_{\times})g \\
         &\approx (\hat{v}_{\times}) \hat{R} (-\zeta^{\omega} + w^{\omega}) +
@@ -299,7 +299,7 @@ The derived velocity approximations and second-order terms can also be used to l
             (\xi^R)_{\times} g \\
         &= (g)_{\times} \xi^R + 
             (\hat{v}_{\times}) \hat{R} (-\zeta^{\omega} + w^{\omega}) +
-              \hat{R} (-\zeta^{a} - w^{a})
+              \hat{R} (-\zeta^{a} + w^{a})
         \label{eq: v linearized RInEKF}
     \end{split}
 \end{equation}
@@ -367,6 +367,12 @@ The process model $f_\text{InEKF}(X_{k-1},\Theta_{k-1},u_{k-1})$ is then used to
         b^{a}_{k} &= b^{a}_{k-1} \label{eq:b^a for f InEKF} 
     \end{align}
 \end{subequations}
+It should be noted that when updating the rotation matrix it should be inspected to make sure the constraint $R R^T = I$ is true. One way of doing this is checking if $\operatorname{det} (R)=1$. If the determinant is not approximately one, the matrix can be renormalized with the following method described in \cite{green1952orthogonal}. Note that this method assumes the determinant is greater than zero which will be assumed in this algorithm implementation because the time step is small
+\begin{equation}
+    R^+ = (R R^T)^{- \frac{1}{2}} R
+    \label{eq: normalize R}
+\end{equation}
+
 
 \subsection{Measurement Model}
 The GPS measurement is collected relative to a world frame. This makes the update for the InEKF more difficult because the Right InEKF measurement update requires a measurement in the body frame while propagating the state covariance in the world frame. Therefore, the Left InEKF is required for the measurement update. This can be accomplished by switching the Right InEKF covariance to the Left InEKF using the adjoint. After performing the update to the left covariance, the left covariance can then be switched back to the right covariance for propagation. The derivation for switching between the left and right error is as follows \cite{Contact-Aided_Invarant_EKF} using the original definition of the adjoint defined in this report \eqref{eq: Ad x xi x^T} 
@@ -552,7 +558,7 @@ Note that the errors are assumed to be independent and have a mean of zero. The 
 
 
 \subsection{Algorithm}
-The Invariant Extended Kalman filter is summarized with the following pseudo code in the algorithm below. The initial state and covariance are first defined where the covariance uses conversions in the previous section. If IMU measurements are available the state and covariance are propagated. If a GPS measurement is received, the algorithm uniquely has to switch from the right to left covariance. The update steps for the left measurement model are then followed ending a with a switch back to the right covariance so that the uncertainty in the error states is in the world frame.
+The Invariant Extended Kalman filter is summarized with the following pseudo code in the algorithm below. The initial state and covariance are first defined where the covariance uses conversions in the previous section. If IMU measurements are available the state and covariance are propagated. If a GPS measurement is received, the algorithm uniquely has to switch from the right to left covariance. The update steps for the left measurement model are then followed ending a with a switch back to the right covariance so that the uncertainty in the error states is in the world frame. Additionally, the rotation matrix $R$ is checked to ensure the $SO(3)$ constraint is maintained.
 
 \RestyleAlgo{ruled}
 \begin{algorithm}[H]
@@ -562,8 +568,11 @@ $(\hat{X}_0, \hat{\Theta}_0 ) = x_0;$ \tcp{See equations \eqref{eq: SE3_2 group}
 
 \While{$receiving$ $measurements$}{
     \If{$IMU$ $measurement$}{
-        $(\hat{X}_k, \hat{\Theta}_k) = f_\text{InEKF}(\hat{X}_{k-1},\hat{\Theta}_{k-1},u_{k-1});$ \tcp{See equations in \eqref{eq: f InEKF}}
         $F_k = I_{15} + \Delta t A^r \big|_{\hat{X}_{k-1}}$\;
+        $(\hat{X}_k, \hat{\Theta}_k) = f_\text{InEKF}(\hat{X}_{k-1},\hat{\Theta}_{k-1},u_{k-1});$ \tcp{See equations in \eqref{eq: f InEKF}}
+        \If{$\left|1 - \operatorname{det} (R)\right| > 10^{-5}$}{
+            $R_k \gets (R_k R_k^T)^{- \frac{1}{2}} R_k$\;
+        }
         $Q^r_k = Ad_{(\hat{X}_k,\hat{\Theta}_k)} \mathrm{Cov}(w_d) (Ad_{(\hat{X}_k,\hat{\Theta}_k)})^T $\;
         $P^r_k = F^r_k P^r_{k-1} (F^r_k)^T + Q^r_k;$ %\tcp{See equation \eqref{eq: Q RInEKF} for $Q^r$ definition}
     }
@@ -574,6 +583,9 @@ $(\hat{X}_0, \hat{\Theta}_0 ) = x_0;$ \tcp{See equations \eqref{eq: SE3_2 group}
         $(K^{\xi}, K^{\zeta}) = K = P^l_k (H^l)^T S^{-1}$\;
         $\hat{X}_k^+ = \hat{X}_k \text{Exp} ( K^{\xi}_k \, \big(\Pi \hat{X}_k^{-1} \Tilde{y}_k)$\;
         $\hat{\Theta}_k^+ = \hat{\Theta}_k + K_k^{\zeta} ( \Pi \hat{X}_k^{-1} \Tilde{y}_k)$\;
+        \If{$\left|1 - \operatorname{det} (R)\right| > 10^{-5}$}{
+            $R^{+}_k \gets (R^{+}_k R^{T +}_k)^{- \frac{1}{2}} R^{+}_k$\;
+        }
         $P^{l +}_k = (I - K H) P^l_k (I-K H)^T + K N^l K^T$\;
         $P^{r +}_k =  Ad_{(\hat{X}_k^+,\hat{\Theta}_k^+)} P^{l +}_k Ad_{(\hat{X}_k^+,\hat{\Theta}_k^+)}^T $
     }

@@ -12,3 +12,7 @@ To specify the number of Monte Carlo runs, adjust the numMCs variable. Setting n
 ## Documentation
 The **InEKF_and_QEKF_Filter_Comparison_Report.pdf**
 provides essential background information for this project. The report explains the IMU and GPS models, covers the theoretical foundations of the QEKF and InEKF, and outlines the respective algorithms. It then presents Monte Carlo simulation results, including detailed figures, and concludes with a summary and list of future work.
+
+## Current Updates Being Worked
+- Adding Magnetometer measurements
+- Adding an observability analysis for Magnitometer and GPS measurements

@@ -18,6 +18,7 @@
 # ---------------------------------
 import numpy as np
 from scipy.linalg import expm
+from scipy.linalg import sqrtm
 
 # ---------------------------------
 # Local Imports
@@ -36,8 +37,8 @@ class InEKF:
         P0_Noise = self.swapCovStates(initial_input['P0Noise'])
         
         # Convert quaternion covaraince to InEKF covariance
-        P_v =  np.diag(P0_Noise[3:6]) + getSkew(self.x[0:3,3]) @ np.diag(P0_Noise[0:3]) @  getSkew(self.x[0:3,3]).T # Convert quaternion vel error to invarient vel error
-        P_p = np.diag(P0_Noise[6:9]) + getSkew(self.x[0:3,4]) @ np.diag(P0_Noise[0:3]) @  getSkew(self.x[0:3,4]).T # Convert quaternion pos error to invarient pos error
+        P_v =  np.diag(P0_Noise[3:6]) + getSkew(self.x[0:3,3]) @ np.diag(P0_Noise[0:3]) @ getSkew(self.x[0:3,3]).T # Convert quaternion vel error to invarient vel error
+        P_p = np.diag(P0_Noise[6:9]) + getSkew(self.x[0:3,4]) @ np.diag(P0_Noise[0:3]) @ getSkew(self.x[0:3,4]).T # Convert quaternion pos error to invarient pos error
         
         # Organize sublocks of covariance
         P_theta = np.block([np.diag(P0_Noise[0:3]), np.zeros((3,12))])
@@ -96,8 +97,8 @@ class InEKF:
         # Define euler approximated right invarient state transition matrix
         self.F = np.block([
                 [I, Z, Z, -R * delta_t, Z],
-                [getSkew(g) * delta_t, I, Z, -getSkew(v) * R * delta_t, -R * delta_t],
-                [Z, I * delta_t, I, -getSkew(p) * R * delta_t, Z],
+                [getSkew(g) * delta_t, I, Z, -getSkew(v) @ R * delta_t, -R * delta_t],
+                [Z, I * delta_t, I, -getSkew(p) @ R * delta_t, Z],
                 [Z, Z, Z, I, Z],
                 [Z, Z, Z ,Z, I]
                 ])
@@ -131,12 +132,28 @@ class InEKF:
         b_omega = b_omega_prior
         b_a = b_a_prior
         
+        # Check R norm
+        self.checkRNorm()
+        
         # Update propagated state tuple
         self.x[0:3,0:3] = R
         self.x[0:3,3] = v
         self.x[0:3,4] = p
         self.theta[0:3] = b_omega.reshape(3,1)
         self.theta[3:6] = b_a.reshape(3,1)
+        
+    def checkRNorm(self):
+        # Check the constaint det(R * R^T ) = 1
+        # Get R
+        R = self.x[0:3,0:3]
+        
+        # Get norm
+        R_norm = (R @ R.T)
+        
+        # Check norm is approximately one
+        if not(np.isclose(np.linalg.det(R_norm), 1, 1e-5)):
+            # Update R
+            self.x[0:3,0:3] = np.linalg.inv(sqrtm(R_norm)) @ R
         
     def propagation(self, u):  
         # Update input to process model

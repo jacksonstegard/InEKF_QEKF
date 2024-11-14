@@ -105,19 +105,18 @@ class QEKF:
         # Define propagated state
         self.x = np.block([p,v,q,b_a,b_omega])
         
-    def checkQNorm(self, x):
+    def checkQNorm(self):
         # Check if quaternion is still a unit quaternion
         # Define q
-        q = x[6:10]
+        q = self.x[6:10]
         
         # Define norm of q
         q_norm = np.linalg.norm(q)
         
         # Check tolerance isn't meet for q_norm
         if not(np.isclose(q_norm, 1, 1e-5)):
-            x[6:10] = q / q_norm
-            
-        return x
+            # Update q
+            self.x[6:10] = q / q_norm
         
     def propagation(self, u):  
         # Update input to process model
@@ -133,7 +132,7 @@ class QEKF:
         self.P = F @ self.P @ F.T + self.Q
     
         # Check for unit quaternion
-        self.x = self.checkQNorm(self.x)
+        self.checkQNorm()
 
     def getH(self):
         # H = H_x * X_delta x
@@ -222,7 +221,7 @@ class QEKF:
         self.x[10:] = self.x[10:] + delta_x[9:]
         
         # Check for unit quaternion
-        self.x = self.checkQNorm(self.x)
+        self.checkQNorm()
         
         # Apply reset
         # - delta_x = 0
