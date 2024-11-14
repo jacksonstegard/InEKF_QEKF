@@ -8,11 +8,11 @@
 % Start of introduction
 \subsection{Purpose}
 
-The purpose of this project is to explore advanced state estimation techniques that are applicable to the Aerospace industry. Specifically, I wanted to compare a Quaternion Extended Kalman Filter (QEKF) to a Invariant Extended Kalman Filter (InEKF). Both filters provide unique methods to tackle the problem of nonlinear state estimation in systems involving attitude. This report serves as a resource for background information on the formulation of each filter and provides a monte carlo simulation comparing each filter.
+The purpose of this project is to explore advanced state estimation techniques that are applicable to the Aerospace industry. Specifically, I wanted to compare a Quaternion Extended Kalman Filter (QEKF) to a Invariant Extended Kalman Filter (InEKF). Both filters provide unique methods to tackle the problem of nonlinear state estimation in systems involving attitude. This report serves as a resource for background information on the formulation of each filter and provides a Monte Carlo simulation comparing each filter.
 
 \subsection{Outline}
 
-This document begins with a background on how IMU and GPS measurements can be modeled. The essential background needed to understand both the QEKF and InEKF filters is then provided including derivation steps for the error dynamics. Building on this foundation, the filters are applied in a simulation using drone data from the Mid-Air Dataset, which includes accelerometer and gyroscope measurements \cite{Fonder2019MidAir}, along with GPS position data. A Monte Carlo analysis reveals that the two filters perform comparably, however, the inclusion of bias states reduce performance for both filters relative to theoretical expectations.
+This document begins with a background on how IMU and GPS measurements can be modeled. The essential background needed to understand both the QEKF and InEKF filters is then provided including derivation steps for the error dynamics. Building on this foundation, the filters are applied in a simulation using drone data from the Mid-Air Dataset, which includes accelerometer and gyroscope measurements \cite{Fonder2019MidAir}, along with GPS position data. A Monte Carlo analysis reveals that when using just a GPS position measurement both the InEKF and QEKF suffer from unobservability in the bias states. However, quicker convergence to a solution is seen across Monte Carlos in the InEKF.
 
 \subsection{Disclaimer}
 
