@@ -1,4 +1,4 @@
-# Comparison of Quaternion and Invariant Extended Kalman Filter (QEKF and InEKF)
+# Comparison of Quaternion and Invariant Extended Kalman Filters (QEKF and InEKF)
 
 ## Introduction
 The purpose of this project is to explore advanced state estimation techniques that are applicable to the Aerospace industry. Specifically, I wanted to compare a Quaternion Extended Kalman Filter (QEKF) to a Invariant Extended Kalman Filter (InEKF). Both filters provide unique methods to tackle the problem of nonlinear state estimation in systems involving attitude. This report serves as a resource for background information on the formulation of each filter and provides a monte carlo simulation comparing each filter.
