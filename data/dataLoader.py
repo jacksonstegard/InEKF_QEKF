@@ -123,7 +123,7 @@ class dataLoader:
         truth['velocity'] = self.getData(trajectoryName,'groundtruth', 'velocity') # world frame [m/s]
         
         return gps, imu, truth 
-    
+            
     # Generate GPS data
     def generateGPS(self, trajectoryName, posSigma = 5):
         # Get groundtruth position and velocity
@@ -147,6 +147,32 @@ class dataLoader:
         # gps['velocity'] = vel
 
         return gps
+    
+    # Generate Magnetometer Data
+    def generateMag(self, trajectoryName, magSampleRate, magSample, magSigma):
+        # Assume a constant local tri-axial magnetometer sample in [nT]
+
+        # Get groundtruth samples at Magnetometer sampling rate
+        idxGT2Mag = int(self.data[trajectoryName]["imu"]["accelerometer"]["metaData"]["sampling_frequency"] / magSampleRate)
+         
+        # Get quaternion data
+        q = self.getData(trajectoryName,'groundtruth', 'attitude').copy() # world frame (w,x,y,z) 
+        q = q[0:-1:idxGT2Mag]
+        
+        # Predefine magneometer data
+        mag = {}
+        magMeasOut = np.zeros((q.shape[0],3))
+        
+        # Loop over trajectory to define measurements
+        for i in range(q.shape[0]):
+            # Get rotation matrix
+            R = quat2rot(q[i,0], q[i,1], q[i,2], q[i,3])
+            
+            magMeasOut[i,:] = R.T @ magSample + np.random.normal([0., 0., 0.], magSigma)
+            
+        mag['intensity'] = magMeasOut
+        
+        return mag
     
     # Generate IMU data
     def generateIMU(self, trajectoryName, noiseAccel=None, noiseGyro=None, noiseBiasAcc=None, noiseBiasGyro=None):

@@ -2,24 +2,25 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Summary}
-This report explored how the Quaternion Extended Kalman Filter and Invariant Extended Kalman Filter compared in a drone state estimation simulation. Detailed background was provided for the IMU and GPS measurement models that were used to estimate the states of the drone. Background was then provided for both filters explaining the derivation of each filter for the estimation problem. A Monte Carlo simulation was then conducted for each filter. From the results, marginal improvements were seen in the InEKF but both filters suffered from unobservability in the bias states. Future work in adding additional measurements must be the next step in helping improve the observability of the system and the comparison between the two filters.
+This report explored how the Quaternion Extended Kalman Filter and Invariant Extended Kalman Filter compared in a drone state estimation simulation. Detailed background was provided for the IMU, GPS, and magnetometer measurement models that were used to estimate the states of the drone. Background was then provided for both filters explaining the derivation of each filter for the estimation problem. A Monte Carlo simulation was then conducted for each filter. From the results, the overall error in the state estimates was found to be similar between the two filters. Marginal improvements in state convergence were found in the InEKF during an initial time period. Future work in expanding the Monte Carlo simulations and adding additional measurements will enhance the comparison of the two filters.
 
 
 \subsection{Future Work}
-There are multiple different ways this report could be improved in the future. The key improvements I would like to see worked are the following:
+There are multiple different ways this work could be improved in the future. The key improvements I would like to see worked are the following:
 \begin{itemize}
-    \item Including a observability analysis for QEKF and InEKF to demonstrate which states are not observable.
-    \item Adding new measurements to the current system. Currently, only GPS position is used to help correct the IMU measurements. Additional measurements could come from a magnetometer, barometer, and vision. For vision, the Mid-Air Dataset \cite{Fonder2019MidAir} provides various measurements such as stereo RGB pictures.
-    \item Comparing body estimates of states could help give more insight into how the two filters compare. Currently, only the world frame estimate of the states are calculated.
-    \item Compare uncertainty estimates for each of the filters.
-    \item Apply these filters to an actual drone with a IMU and GPS receiver
-    \item Perform additional Monte Carlo trials that include using different trajectories for the drone
+    % \item Including a observability analysis for QEKF and InEKF to demonstrate which states are not observable
+    \item Adding new measurements to the current system. Additional measurements could come from a barometer, air speed sensor and/or vision. For vision, the Mid-Air Dataset \cite{Fonder2019MidAir} provides various measurements such as stereo RGB pictures
+    \item Including Monte Carlo simulations across different trajectories and randomize the noise separately for each trajectory
+    \item Comparing body estimates of states could help give more insight into how the two filters compare. Currently, only the world frame estimate of the states are calculated
+    \item Compare uncertainty estimates for each of the filters
     \item Give a example of the InEKF using a simple system to demonstrate the possible invariant properties and show what the covariance in the Lie group vs. Lie algebra looks like
     \item Include a tradition Kalman Filter that propagates the Euler angles without a quaternion or rotation matrix representation
     \item Create a C++ implementation of the filters
+     \item Apply these filters to an actual drone
     \item Compare the computational time required to run each filter
     \item Include more background on the Lie groups and Lie algebra including visuals
     \item Add some of the missing proofs that are mentioned in the background sections for each filter
+    \item Better characterize with numbers what it means to be converged
 \end{itemize}
 
 \clearpage

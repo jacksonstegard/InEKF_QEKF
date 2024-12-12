@@ -274,7 +274,7 @@ class postProcessKF:
         ax[0].set_ylabel('Attitude X [deg]')
         # ax[0].grid(True)
         ax[0].legend(loc='upper right')
-        ax[0].set_title(f'{self.filterName} - Attitude - {self.trajName}')
+        ax[0].set_title(f'{self.filterName} - Attitudes - {self.trajName}')
         
         # - Plot y attitude
         if self.numMCs > 0:
@@ -316,10 +316,142 @@ class postProcessKF:
         plt.tight_layout()
         plt.show()
         
+        # - Setup saving of figures
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        output_dir = os.path.join(script_dir, "..", "figs")
+        os.makedirs(output_dir, exist_ok=True)
+       
         # - Save plot
         plot_filename = f"{self.filterName}_{self.trajName}_attitudes.pdf"
         plot_filepath = os.path.join(output_dir, plot_filename)
         fig.savefig(plot_filepath)
+        
+    def plotInitialTime(self, initTime):
+        # Check monte carlos
+        if self.numMCs <= 0:
+            print('Monte Carlos must be greater than zero for initial time plots!')
+            return
+        
+        # Determine indices to plot over
+        idxs = self.tIMU < initTime
+        
+        # Plot positions
+        fig, ax = plt.subplots(3, 3, figsize=(8, 6), sharex=True)
+        
+        # - Plot x position
+        for i in range(self.P.shape[0]):
+            ax[0,0].plot(self.tIMU[idxs], self.pos[i,0,idxs])
+            
+        ax[0,0].plot(self.tIMU[idxs], self.truth['position'][idxs,0], color='black', label='$p_x$')
+        ax[0,0].set_xlabel('Time [sec]')
+        ax[0,0].set_ylabel('Position X [m]')
+        # ax[0].grid(True)
+        ax[0,0].legend(loc='upper right')
+        ax[0,0].set_title(f'{self.filterName} - Positions - {self.trajName}',fontsize=9.5)
+        
+        # - Plot y position
+        for i in range(self.P.shape[0]):
+            ax[1,0].plot(self.tIMU[idxs], self.pos[i,1,idxs])
+            
+        ax[1,0].plot(self.tIMU[idxs], self.truth['position'][idxs,1], color='black', label='$p_y$')
+        ax[1,0].set_xlabel('Time [sec]')
+        ax[1,0].set_ylabel('Position Y [m]')
+        # ax[1].grid(True)
+        ax[1,0].legend(loc='upper right')
+        
+        # - Plot z position
+        for i in range(self.P.shape[0]):
+            ax[2,0].plot(self.tIMU[idxs], self.pos[i,2,idxs])
+            
+        ax[2,0].plot(self.tIMU[idxs], self.truth['position'][idxs,2], color='black', label='$p_z$')
+        ax[2,0].set_xlabel('Time [sec]')
+        ax[2,0].set_ylabel('Position Z [m]')
+        # ax[2].grid(True)
+        ax[2,0].legend(loc='upper right')
+        
+        
+        # Plot Velocities
+        # - Plot x velocity
+        for i in range(self.P.shape[0]):
+            ax[0,1].plot(self.tIMU[idxs], self.vel[i,0,idxs])
+            
+        ax[0,1].plot(self.tIMU[idxs], self.truth['velocity'][idxs,0], color='black', label='$v_x$')
+        ax[0,1].set_xlabel('Time [sec]')
+        ax[0,1].set_ylabel('Velocity X [m/s]')
+        # ax[0].grid(True)
+        ax[0,1].legend(loc='upper right')
+        ax[0,1].set_title(f'{self.filterName} - Velocities - {self.trajName}',fontsize=9.5)
+        
+        # - Plot y velocity
+        for i in range(self.P.shape[0]):
+            ax[1,1].plot(self.tIMU[idxs], self.vel[i,1,idxs])
+            
+        ax[1,1].plot(self.tIMU[idxs], self.truth['velocity'][idxs,1], color='black', label='$v_y$')
+        ax[1,1].set_xlabel('Time [sec]')
+        ax[1,1].set_ylabel('Velocity Y [m/s]')
+        # ax[1].grid(True)
+        ax[1,1].legend(loc='upper right')
+        
+        # - Plot z velocity
+        for i in range(self.P.shape[0]):
+            ax[2,1].plot(self.tIMU[idxs], self.vel[i,2,idxs])
+            
+        ax[2,1].plot(self.tIMU[idxs], self.truth['velocity'][idxs,2], color='black', label='$v_z$')
+        ax[2,1].set_xlabel('Time [sec]')
+        ax[2,1].set_ylabel('Velocity Z [m/s]')
+        # ax[2].grid(True)
+        ax[2,1].legend(loc='upper right')
+        
+        
+        # Plot attitudes        
+        # - Plot x attitude
+        for i in range(self.P.shape[0]):
+            ax[0,2].plot(self.tIMU[idxs], self.eulerAngles[i,0,idxs])
+            
+        ax[0,2].plot(self.tIMU[idxs], self.truth['theta_deg'][idxs,0], color='black', label=r'$\theta_x$')
+        ax[0,2].set_ylim([np.min(self.truth['theta_deg'][:,0]) - 20, np.max(self.truth['theta_deg'][:,0]) + 20]) 
+        ax[0,2].set_xlabel('Time [sec]')
+        ax[0,2].set_ylabel('Attitude X [deg]')
+        # ax[0].grid(True)
+        ax[0,2].legend(loc='upper right')
+        ax[0,2].set_title(f'{self.filterName} - Attitudes - {self.trajName}',fontsize=9.5)
+        
+        # - Plot y attitude
+        for i in range(self.P.shape[0]):
+            ax[1,2].plot(self.tIMU[idxs], self.eulerAngles[i,1,idxs])
+        
+        # ax[1].set_ylim([np.min(self.truth['theta_deg'][:,1]) - 20, np.max(self.truth['theta_deg'][:,1]) + 20]) 
+        ax[1,2].plot(self.tIMU[idxs], self.truth['theta_deg'][idxs,1], color='black', label=r'$\theta_y$')
+        ax[1,2].set_xlabel('Time [sec]')
+        ax[1,2].set_ylabel('Attitude Y [deg]')
+        # ax[1].grid(True)
+        ax[1,2].legend(loc='upper right')
+        
+        # - Plot z attitudes
+        for i in range(self.P.shape[0]):
+            ax[2,2].plot(self.tIMU[idxs], self.eulerAngles[i,2,idxs])
+            
+        # ax[2].set_ylim([np.min(self.truth['theta_deg'][:,2]) - 20, np.max(self.truth['theta_deg'][:,2]) + 20]) 
+        ax[2,2].plot(self.tIMU[idxs], self.truth['theta_deg'][idxs,2], color='black', label=r'$\theta_z$')
+        ax[2,2].set_xlabel('Time [sec]')
+        ax[2,2].set_ylabel('Attitude Z [deg]')
+        # ax[2].grid(True)
+        ax[2,2].legend(loc='upper right')
+        
+        # - Show plot
+        plt.tight_layout()
+        plt.show()
+        
+        # - Setup saving of figures
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        output_dir = os.path.join(script_dir, "..", "figs")
+        os.makedirs(output_dir, exist_ok=True)
+                
+        # - Save plot
+        plot_filename = f"{self.filterName}_{self.trajName}_initial_time.pdf"
+        plot_filepath = os.path.join(output_dir, plot_filename)
+        fig.savefig(plot_filepath)
+        
         
     def plotDebug(self, x = None):
         # If x is not provided use class attribute

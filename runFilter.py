@@ -5,8 +5,8 @@
 # -------------------------------------------------------------------
 #   Description:
 #   This script runs the QEKF and/or InEKF filter(s) on sensor data 
-#   from the MAD dataset. Monte Carlo simulation is performed to 
-#   compare filters
+#   emulator sensor data and truth data from the MAD dataset. Monte
+#   Carlo simulations are performed to compare filters
 # ===================================================================
 
 # ---------------------------------
@@ -38,23 +38,31 @@ if __name__ == "__main__":
     generateGps = 1
     gpsPosSigma = 1
     
+    # Magnetometer setup
+    generateMag = 1
+    magSample = np.array([18323, 4947, 49346]) # Redmond Washington sample location
+    magSample = magSample / np.linalg.norm(magSample) # Normalize mag sample
+    magSigma = 0.05 # nT (normalized)
+    magSampleRate = 10 # Hz
+    
     # IMU setup
     generateIMU = 1
-    sigmaAccel = 5e-3
-    sigmaOmega = 8e-4
-    sigmaAccelBias = 2e-4
-    sigmaOmegaBias = 1e-5
+    sigmaAccel = 5e-4
+    sigmaOmega = 1e-4
+    sigmaAccelBias = 6e-4
+    sigmaOmegaBias = 3e-5
     
     # Monte Carlo setup
     numMCs = 0 # Zero Monte Carlo will create no randomization of initial conditions
-    mcsInitPosBounds = 10
-    mcsInitVelBounds = 2
+    mcsInitPosBounds = 15
+    mcsInitVelBounds = 5
     mcsInitAngBounds = 15
-    mcsInitAccelBiasBounds = 1e-5
-    mcsInitGyroBiasBounds = 1e-6
+    mcsInitAccelBiasBounds = 5e-5
+    mcsInitGyroBiasBounds = 5e-6
     
     # Plotting setup
     plotCovaraince = False
+    initTime = 10 # Initial time to plot up to for convergence plots
     
     # Initial constants
     np.random.seed(1)
@@ -95,15 +103,25 @@ if __name__ == "__main__":
             oneArray = np.ones(3)
             imu = madData.generateIMU(trajectoryName, noiseAccel=sigmaAccel*oneArray, noiseGyro=sigmaOmega*oneArray,
                                       noiseBiasAcc=sigmaAccelBias*oneArray, noiseBiasGyro=sigmaOmegaBias*oneArray)
+        
+        # Optionally generate mag data
+        if generateMag:
+            # Get mag data
+            mag = madData.generateMag(trajectoryName, magSampleRate, magSample, magSigma)
             
-        # Get time series and time step for imu and gps
+            # Collect mag sampling data
+            deltaTMag = 1 / magSampleRate # (1/Hz) -> sec
+            numSamplesMag = len(mag['intensity'])
+            tMag = np.arange(0, numSamplesMag * deltaTMag, deltaTMag)
+            
+        # Get sampling data for imu and gps
         deltaT = 1 / data[trajectoryName]["imu"]["accelerometer"]["metaData"]["sampling_frequency"] # (1/Hz) -> sec
         deltaTGPS = 1 / data[trajectoryName]["gps"]["position"]["metaData"]["sampling_frequency"] # (1/Hz) -> sec
         numSamplesIMU = len(imu['accel'])
         numSamplesGPS = len(gps['position'])
         tIMU = np.arange(0, numSamplesIMU * deltaT, deltaT)
         tGPS = np.arange(0, numSamplesGPS * deltaTGPS, deltaTGPS)
-
+                
         # ---------------------------------
         # Initialize States and Covariances
         # ---------------------------------
@@ -111,8 +129,8 @@ if __name__ == "__main__":
         P0Noise = np.array([5, 5, 5, 
                       2, 2, 2, 
                       0.7, 0.7, 0.7, 
-                      1e-1, 1e-1, 1e-1, 
-                      1e-2, 1e-2, 1e-2])**2
+                      1e-3, 1e-3, 1e-3, 
+                      1e-3, 1e-3, 1e-3])**2
         P0 = np.diag(P0Noise)
         
         # Define process noise
@@ -123,7 +141,8 @@ if __name__ == "__main__":
                      sigmaOmegaBias**2, sigmaOmegaBias**2, sigmaOmegaBias**2])
         
         # Define measurement noise
-        v = np.array(np.concatenate([np.full(3, gpsPosSigma**2), np.zeros(12)]))
+        vGPS = np.full(3, gpsPosSigma**2)
+        vMag = np.full(3, magSigma**2)
         
         # Get true initial conditions
         p0True = truth['position'][0]
@@ -152,14 +171,14 @@ if __name__ == "__main__":
         # Define Monte Carlo initial conditions if randomized Monte Carlos are used
         for i in range(numMCs):
             # Randomize initial position, velocity, quaternion and biases relative to true initial condition
-            p0[i] =  np.random.uniform(-mcsInitVelBounds,mcsInitVelBounds,3)
-            v0[i] += np.random.uniform(-mcsInitVelBounds,mcsInitVelBounds,3)
+            p0[i] = p0True * np.ones(3) + np.random.uniform(-mcsInitPosBounds,mcsInitPosBounds,3)
+            v0[i] = v0True * np.ones(3) + np.random.uniform(-mcsInitVelBounds,mcsInitVelBounds,3)
             theta0 = quat2euler(q0True[0], q0True[1], q0True[2], q0True[3])
             q0[i] = euler2quat(np.random.uniform(-mcsInitAngBounds, mcsInitAngBounds, 3) \
                             * np.pi / 180 + theta0.ravel()).ravel()
             # R0[i] = quat2rot(q0[i,0], q0[i,1], q0[i,2], q0[i,3])
-            ba0[i] += np.random.uniform(-mcsInitAccelBiasBounds,mcsInitAccelBiasBounds,3)
-            bg0[i] += np.random.uniform(-mcsInitGyroBiasBounds,mcsInitGyroBiasBounds,3)
+            ba0[i] = ba0True * np.ones(3) + np.random.uniform(-mcsInitAccelBiasBounds,mcsInitAccelBiasBounds,3)
+            bg0[i] = bg0True * np.ones(3) + np.random.uniform(-mcsInitGyroBiasBounds,mcsInitGyroBiasBounds,3)
                 
         # ---------------------------------
         # Loop Over Filters and Monte Carlos
@@ -180,7 +199,8 @@ if __name__ == "__main__":
                         x0 = np.concatenate((np.array([0,0,0]), v0, q0, ba0, bg0))
                     
                     # Define initial inputs
-                    initialInputs = {'x0': x0, 'P0Noise': P0Noise, 'w': w,'v': v, 'deltaT': deltaT, 'g': gravity}
+                    initialInputs = {'x0': x0, 'P0Noise': P0Noise, 'w': w,'v_gps': vGPS, \
+                                     'v_mag': vMag, 'm_w': magSample, 'deltaT': deltaT, 'g': gravity}
                     
                     # Pre-allocate state
                     if filterName == 'QEKF':
@@ -226,14 +246,24 @@ if __name__ == "__main__":
                         # Propagate state estimate
                         filt.propagation(u)
                         
-                        # Check if measurement is received
+                        # Check if Magneometer measurement is received and is generated (only check if generated for mag)
+                        if generateMag:
+                            iMag = int(np.floor(i*deltaT / deltaTMag))
+                            if np.isclose(tIMU[i], tMag[iMag]):
+                                # Get measurement from gps
+                                y = mag['intensity'][iMag]
+                                
+                                # Correct state estimate
+                                filt.correction(y, 'mag')
+                        
+                        # Check if GPS measurement is received
                         iGPS = int(np.floor(i*deltaT / deltaTGPS))
                         if np.isclose(tIMU[i], tGPS[iGPS]):
                             # Get measurement from gps
-                            y = np.block([gps['position'][iGPS],  np.zeros(12)])
+                            y = gps['position'][iGPS]
                             
                             # Correct state estimate
-                            filt.correction(y)
+                            filt.correction(y, 'gps')
                         
                         # Collect state and covaraince
                         if filterName == 'QEKF':
@@ -257,7 +287,7 @@ if __name__ == "__main__":
                     # Define post processing object
                     ppKF = postProcessKF(x, tIMU, tGPS, imu, gps, truth, trajectoryName, filterName, numMCs, P = P)
                     
-                    # Plot states and debug plots
+                    # Plot states and debug plots over entire trajectory
                     ppKF.plotTrajStates(plotCov=plotCovaraince)
                     ppKF.plotDebug()
                     
@@ -272,8 +302,11 @@ if __name__ == "__main__":
                     # Initialize post processing object
                     ppKF = postProcessKF(allX, tIMU, tGPS, imu, gps, truth, trajectoryName, filterName, numMCs, allP)
                     
-                    # Plots states
+                    # Plots states over entire trajectory
                     ppKF.plotTrajStates()
+            
+                    # Plot states over initial time interval
+                    ppKF.plotInitialTime(initTime)
             
                     # Print errors
                     ppKF.printResults()

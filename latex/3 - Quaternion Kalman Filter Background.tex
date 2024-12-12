@@ -19,7 +19,7 @@ The quaternion $q$ is represented by a four element vector made of a complex $q_
             \end{bmatrix} 
 \label{eq: quaternion vector}
 \end{equation}
-Quaternion multiplication $\otimes$ is used in the composition of two quaternions and csn be defined for two quaternions $p$ and $q$ \cite{Quaternion_Kinematics_for_the_Error-state_EKF} as
+Quaternion multiplication $\otimes$ is used in the composition of two quaternions and can be defined for two quaternions $p$ and $q$ \cite{Quaternion_Kinematics_for_the_Error-state_EKF} as
 \begin{equation}
        p \otimes q=\left[\begin{array}{l}p_w q_w-p_x q_x-p_y q_y-p_z q_z \\ p_w q_x+p_x q_w+p_y q_z-p_z q_y \\ p_w q_y-p_x q_z+p_y q_w+p_z q_x \\ p_w q_z+p_x q_y-p_y q_x+p_z q_w\end{array}\right]
 \label{eq: quaternion multiplication}
@@ -66,7 +66,7 @@ A unit quaternion, with a norm equal to 1 ($\|q\| = 1$), is the type of quaterni
             \end{bmatrix} 
     \label{eq: q exp}
 \end{equation}
-A incremental rotation can then be represented as $\Delta \theta = \omega \Delta t$ where $u = \frac{\omega \Delta t}{\| \omega \Delta t\|}$ and $\psi = \| \omega \Delta t\|$. Substituting into equation \eqref{eq: q exp}, an incremental quaternion can be defined as
+where $u = \frac{\omega \Delta t}{\| \omega \Delta t\|}$ and $\psi = \| \omega \Delta t\|$. A incremental rotation can then be represented as $\Delta \theta = \omega \Delta t$ . Substituting into equation \eqref{eq: q exp}, an incremental quaternion can be defined as
 \begin{equation}
     \delta q = \exp{(\omega \Delta t)} = q\{\omega \Delta t\} = \cos{(\frac{\| \omega \Delta t\|}{2})} +             \frac{\omega \Delta t}{\| \omega \Delta t\|} \sin{(\frac{\| \omega \Delta t\|}{2})} 
     = \begin{bmatrix}
@@ -78,8 +78,11 @@ A incremental rotation can then be represented as $\Delta \theta = \omega \Delta
 This incremental quaternion $\delta q$ can also simply be approximated by \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
 \begin{equation}
     \delta q = \begin{bmatrix}
-        1\\
+        1 \\
         \frac{1}{2} \omega \Delta t
+    \end{bmatrix} = \begin{bmatrix}
+        1 \\
+        \frac{1}{2} \Delta \theta
     \end{bmatrix}
     \label{eq: delta q approx}
 \end{equation}
@@ -89,7 +92,7 @@ The rotation of a given vector can be accomplished with the double quaternion pr
         p_W^{BW} = q_{WB} \otimes p_B^{BW} \otimes q_{WB}^*
     \label{eq: quaterion rotation of p}
 \end{equation}
-A quaternion can also be converted into a rotation matrix, which can accomplish the same transformation as in $\eqref{eq: quaterion rotation of p}$, with the following formula \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+A quaternion can also be converted into a rotation matrix, which can also transformation a vector in one frame to another frame with the following formula \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
 \begin{equation}
     R = R\{q\} = \left[\begin{array}{ccc}q_w^2+q_x^2-q_y^2-q_z^2 & 2\left(q_x q_y-q_w q_z\right) & 2\left(q_x q_z+q_w q_y\right) \\ 2\left(q_x q_y+q_w q_z\right) & q_w^2-q_x^2+q_y^2-q_z^2 & 2\left(q_y q_z-q_w q_x\right) \\ 2\left(q_x q_z-q_w q_y\right) & 2\left(q_y q_z+q_w q_x\right) & q_w^2-q_x^2-q_y^2+q_z^2\end{array}\right]
     \label{eq: q to R}
@@ -104,7 +107,7 @@ Additionally, there exists conversions between quaternions and Euler angles whic
     \theta = \theta\{q\} =\left[\begin{array}{c}\operatorname{atan2}\left(2\left(q_w q_x+q_y q_z\right), 1-2\left(q_x^2+q_y^2\right)\right) \\ \operatorname{asin} (2 (q_w q_z - q_x q_y) \\ \operatorname{atan2}\left(2\left(q_w q_z+q_x q_y\right), 1-2\left(q_y^2+q_z^2\right)\right)\end{array}\right]
     \label{eq: Quaternion to Euler}
 \end{equation}
-Note that equation \eqref{eq: Euler to quaternion}, provides an alternate method to compute $\delta q$ as done in equation \eqref{eq: q exp with omega delta t}. This alternate method will be the one used in this report.
+Note that equation \eqref{eq: Euler to quaternion}, provides an alternate method to compute $\delta q$ as done in equation \eqref{eq: q exp with omega delta t} when $\theta$ is replaced with $\Delta \theta$. This alternate method will be the one used in this report.
 
 
 \subsection{Process Model Error States and Jacobians}
@@ -194,7 +197,7 @@ From \eqref{eq: alt delta a}, it is shown that $\delta a = -\delta b^a - w^a$. A
     \label{eq: delta v con}
 \end{equation}
 
-To derive the attitude error $\delta \theta$, the continuous time equation for a quaternion \eqref{eq:q dot} can broken down into nominal and error components using equation \eqref{eq: q right update}. Because $\omega$ in \eqref{eq:q dot} is in the body frame, equation \eqref{eq: quaterion rotation of p} can be used as well to redefine the coordinate frame of $\omega$. Using equation \eqref{eq: (q)_R matrix} allows $\delta q \otimes \omega$ to be rewritten as a matrix with $\delta q$ being approximated by equation \eqref{eq: delta q approx}. Dropping second order terms, the attitude error is
+To derive the attitude error $\delta \theta$, the continuous time equation for a quaternion \eqref{eq:q dot} can broken down into nominal and error components using equation \eqref{eq: q right update}. Because $\omega$ in \eqref{eq:q dot} is in the body frame, equation \eqref{eq: quaterion rotation of p} can be used to redefine the coordinate frame of $\omega$. Using equation \eqref{eq: (q)_R matrix} allows $\delta q \otimes \omega$ to be rewritten as a matrix with $\delta q$ being approximated by equation \eqref{eq: delta q approx}. Dropping second order terms, the attitude error is
 \begin{equation}
     \begin{split}
         \dot{q} &= \frac{1}{2} q \otimes (\omega)\\
@@ -272,43 +275,140 @@ With the discrete time equations, the state transition matrix $F_k$ and state co
     \end{bmatrix}
     \label{eq: quaternion Q}
 \end{equation}
-Here the bolded zeros $\mathbf{0}$ represents a 3 by 3 zero matrix $0_{3 \times 3}$. Additionally, the subscript d is used to represent the discretized noise based on table \eqref{tab: Measurement Noise Statistics}.
+Here the bolded zeros $\mathbf{0}$ represents a 3 by 3 zero matrix $0_{3 \times 3}$. Additionally, the subscript d is used to represent the discretized noise values defined in table \eqref{tab: Measurement Noise Statistics}.
 
 \subsection{Measurement Jacobian}
 
-The measurement Jacobian $H$ is defined with respect to the error state $\delta x$. However, for the GPS model, the estimated position is not a error state and is equal to $\bar{p}$. Therefore, the chain rule can be used to break down the Jacobian into 
-derivatives of known states \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+The measurement Jacobian $H$ is defined with respect to the error state $\delta x$. However, for the GPS and magnetometer models, the estimate of the measurement is not a error state. Therefore, the chain rule can be used to break down the Jacobian into derivatives of known states \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
 \begin{equation}
-    H = \frac{\partial h}{\partial \delta x} \bigg|_{\bar{x}} = \frac{\partial h}{\partial x} \bigg|_{\bar{x}} \frac{\partial x}{\partial \delta x} \bigg|_{\bar{x}} 
+    H = \frac{\partial h}{\partial \delta x} \bigg|_{\bar{x}} = \frac{\partial h}{\partial \bar{x}} \bigg|_{\bar{x}} \frac{\partial \bar{x}}{\partial \delta x} \bigg|_{\bar{x}} = H_x X_{\delta x}
     \label{eq: H quaternion}
 \end{equation}
-With the GPS model being fairly simple the only partial in $ \frac{\partial x}{\partial \delta x} |_{\bar{x}}$ of relevance is $\frac{\partial (\bar{p} + \delta p)}{\partial \delta p}$ which is equal to the identity matrix. Therefore, the measurement Jacobian reduces to the typical one derived without error states equal to 
+$H_x$, the Jacobain of the measurement model and the true state changes for each measurement model but $X_{\delta x}$ the Jacobain of the true state and the error state can be derived on its own. As shown in \cite{Quaternion_Kinematics_for_the_Error-state_EKF} the Jacobain $X_{\delta x}$ is defined as
 \begin{equation}
-    H = \begin{bmatrix}
-        I & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
-        \multicolumn{5}{c}{0_{12 \times 15}}
+    X_{\delta x} = \begin{bmatrix}
+    \frac{\partial (\bar{p} + \delta p)}{\partial \delta p} & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0}\\
+    \mathbf{0} & \frac{\partial (\bar{v} + \delta v)}{\partial \delta v} & \mathbf{0} & \mathbf{0} & \mathbf{0}\\
+    0_{4 \times 3} & 0_{4 \times 3} & \frac{\partial (\delta q \otimes \bar{q})}{\partial \delta \theta} & 0_{4 \times 3} & 0_{4 \times 3}\\
+    \mathbf{0} & \mathbf{0} & \mathbf{0} & \frac{\partial (\bar{b}^a + \delta b^a)}{\partial \delta b^a} & \mathbf{0} \\
+    \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} & \frac{\partial (\bar{b}^{\omega} + \delta b^{\omega})}{\partial \delta b^{\omega}}
+    \end{bmatrix}
+    \label{eq:X_delta_x}
+\end{equation}
+This results in many identity blocks except for the quaternion Jacobain term $Q_{\delta q} = \frac{\partial (\delta q \otimes \bar{q})}{\partial \delta \theta}$. $X_{\delta x}$ can be rewritten as
+\begin{equation}
+    X_{\delta x} = \begin{bmatrix}
+    I & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0}\\
+    \mathbf{0} & I & \mathbf{0} & \mathbf{0} & \mathbf{0}\\
+    0_{4 \times 3} & 0_{4 \times 3} & Q_{\delta q} & 0_{4 \times 3} & 0_{4 \times 3}\\
+    \mathbf{0} & \mathbf{0} & \mathbf{0} & I & \mathbf{0} \\
+    \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} & I
+    \end{bmatrix}
+    \label{eq:X_delta_x_simplified}
+\end{equation}
+
+The quaternion Jacobain term $Q_{\delta q}$ can be derived using the quaternion matrix representation in equation \eqref{eq: (q)_R matrix} for a global angular error and the approximation for the incremental quaternion \eqref{eq: delta q approx}
+\begin{equation}
+    \begin{split}
+        Q_{\delta q} &= \frac{\partial (\delta q \otimes \bar{q})}{\partial \delta \theta}\bigg|_{\bar{q}} \\
+        &= \frac{\partial (\delta q \otimes \bar{q})}{\partial \delta q} \bigg|_{\bar{q}} \frac{\partial \delta q}{\partial \delta \theta} \bigg|_{\delta \theta = 0} \\
+        &\approx \frac{\partial ([\bar{q}]_R \delta q)}{\partial \delta q} \bigg|_{\bar{q}} \frac{\partial \begin{bmatrix}
+            1 \\
+            \frac{1}{2} \delta \theta
+        \end{bmatrix}}{\partial \delta \theta} \bigg|_{\delta \theta = 0} \\
+        &= \frac{1}{2} [\bar{q}]_R \begin{bmatrix}
+            0 & 0 & 0 \\
+            1 & 0 & 0 \\
+            0 & 1 & 0 \\
+            0 & 0 & 1
+        \end{bmatrix} \\
+        &= \frac{1}{2} \begin{bmatrix}
+            -q_x & -q_y & -q_z \\
+            q_w & q_z & -q_y \\
+            -q_z & q_w & q_x \\
+            q_y & -q_x & q_w \\
+        \end{bmatrix}
+    \end{split}
+    \label{eq: Q_ delta q derivation}
+\end{equation}
+
+\subsubsection{GPS Jacobain}
+The GPS model is fairly simple. The measurement function is defined as
+\begin{equation}
+    h_{GPS}(\bar{x}) = \bar{p}
+    \label{eq: gps measurement fuction quaternion}
+\end{equation}
+Therefore, the Jacobain of $h_{GPS}(\bar{x})$ with respect to $\bar{x}$ is
+\begin{equation}
+    H_{x,GPS} = \frac{\partial h_{GPS}}{\partial \bar{x}} \bigg|_{\bar{x}} = \begin{bmatrix}
+        I & \mathbf{0} & 0_{3 \times 4} & \mathbf{0} & \mathbf{0} \\
         \end{bmatrix}
     \label{eq: H quaternion full}
 \end{equation}
-The full measurement $\Tilde{y} \in \mathbb{R}^{15}$ and the measurement covariance $N \in \mathbb{R}^{15 \times 15}$ are defined as
+The measurement Jacobain is then defined as
 \begin{equation}
-    \Tilde{y} = \begin{bmatrix}
-        \Tilde{y_p} \\
-        0_{12}
-    \end{bmatrix}
-    \label{eq: y tilde quaternion}
+    H_{GPS} = H_{x,GPS} X_{\delta x} = \begin{bmatrix}
+        I & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
+        \end{bmatrix}
+    \label{eq: measurement jacobain H}
+\end{equation}
+For the measurement $\Tilde{y}_{GPS} \in \mathbb{R}^{3}$, the measurement covariance $N \in \mathbb{R}^{3 \times 3}$ is
+\begin{equation}
+   N_{GPS} = \sigma^2_{y_{GPS}} I
+    \label{eq: N gps quaternion}
 \end{equation}
 
+\subsubsection{Magnetometer Jacobain}
+For the magnetometer, the measurement function is defined to use the estimate of the rotation matrix, via the quaternion, and the known world magnetometer field to estimate the measured body magnetometer field. This function is defined using equation \eqref{eq: q to R}
 \begin{equation}
-   N =  \begin{bmatrix}
-        \sigma^2_{y_p} I & \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
-        \multicolumn{5}{c}{0_{12 \times 15}}
-        \end{bmatrix}
-    \label{eq: N quaternion}
+    h_{Mag}(\bar{x}) = R{\{\bar{q}\}}^T m_W
+    \label{eq: h mag quat}
 \end{equation}
+The Jacobain $H_{x,Mag}$ is only dependent on the terms with respect to the nominal quaternion. These terms are equal to 
+\begin{equation}
+    \begin{split}
+            \frac{\partial h_{Mag}}{\partial q} \bigg|_{\bar{q}} 
+            &= \frac{\partial}{\partial q} \left[\begin{array}{ccc}
+            q_w^2+q_x^2-q_y^2-q_z^2 & 2\left(q_x q_y-q_w q_z\right) & 2\left(q_x q_z+q_w q_y\right) \\ 
+            2\left(q_x q_y+q_w q_z\right) & q_w^2-q_x^2+q_y^2-q_z^2 & 2\left(q_y q_z-q_w q_x\right) \\ 
+            2\left(q_x q_z-q_w q_y\right) & 2\left(q_y q_z+q_w q_x\right) & q_w^2-q_x^2-q_y^2+q_z^2
+            \end{array}\right] \begin{bmatrix}
+            m_{W,x} \\
+            m_{W,y} \\
+            m_{W,z} 
+        \end{bmatrix}
+        \Bigg|_{\bar{q}} \\
+            &= \resizebox{\textwidth}{!}{$
+            \left[\begin{matrix}
+            2 m_{W,x} \bar{q}_{w} + 2 m_{W,y} \bar{q}_{z} - 2 m_{W,z} \bar{q}_{y} & 2 m_{W,x} \bar{q}_{x} + 2 m_{W,y} \bar{q}_{y} + 2 m_{W,z} \bar{q}_{z} & - 2 m_{W,x} \bar{q}_{y} + 2 m_{W,y} \bar{q}_{x} - 2 m_{W,z} \bar{q}_{w} & - 2 m_{W,x} \bar{q}_{z} + 2 m_{W,y} \bar{q}_{w} + 2 m_{W,z} \bar{q}_{x}\\
+            - 2 m_{W,x} \bar{q}_{z} + 2 m_{W,y} \bar{q}_{w} + 2 m_{W,z} \bar{q}_{x} & 2 m_{W,x} \bar{q}_{y} - 2 m_{W,y} \bar{q}_{x} + 2 m_{W,z} \bar{q}_{w} & 2 m_{W,x} \bar{q}_{x} + 2 m_{W,y} \bar{q}_{y} + 2 m_{W,z} \bar{q}_{z} & - 2 m_{W,x} \bar{q}_{w} - 2 m_{W,y} \bar{q}_{z} + 2 m_{W,z} \bar{q}_{y}\\
+            2 m_{W,x} \bar{q}_{y} - 2 m_{W,y} \bar{q}_{x} + 2 m_{W,z} \bar{q}_{w} & 2 m_{W,x} \bar{q}_{z} - 2 m_{W,y} \bar{q}_{w} - 2 m_{W,z} \bar{q}_{x} & 2 m_{W,x} \bar{q}_{w} + 2 m_{W,y} \bar{q}_{z} - 2 m_{W,z} \bar{q}_{y} & 2 m_{W,x} \bar{q}_{x} + 2 m_{W,y} \bar{q}_{y} + 2 m_{W,z} \bar{q}_{z}
+            \end{matrix}\right]
+            $}
+    \end{split}
+    \label{eq: dh dq}
+\end{equation}
+Therefore, the Jacobain $H_{x,Mag}$ is equal to
+\begin{equation}
+    H_{x,Mag} = \begin{bmatrix}
+        0_{3 \times 6} & \frac{\partial h_{Mag}}{\partial q} \bigg|_{\bar{q}} & 0_{3 \times 6} \\
+    \end{bmatrix}
+    \label{eq: H_x mag}
+\end{equation}
+With this definition and the previous definition for the quaternion Jacobain $Q_{\delta q}$, the magnetometer Jacobain is equal to the multiplication of the two matrices.
+\begin{equation}
+    H_{Mag} = H_{x,Mag} X_{\delta x}
+    \label{eq: H mag quaternion}
+\end{equation}
+The noise covariance matrix for the magnetometer $N_{Mag}$ is defined using the variance $\sigma_{Mag}^2$. This variance is defined for the magnetometer field in the body frame after normalization of the magnetometer measurement.
+\begin{equation}
+    N_{Mag} = I \sigma_{Mag}^2
+    \label{eq: N mag quaternion}
+\end{equation}
+
 
 \subsection{ESEK Reset Jacobian}
-As described in \cite{Quaternion_Kinematics_for_the_Error-state_EKF}, after the nominal states is updated with the error state, during the correction step, the error $\delta x$ gets reset to zero. Therefore, to make the ESKF update complete, the covariance of the error needs to reflect this reset. Calling the error reset function $g()$, it is defined as \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
+As described in \cite{Quaternion_Kinematics_for_the_Error-state_EKF}, after the nominal states is updated with the error state, during the correction step, the error $\delta x$ gets reset to zero. To make the ESKF update complete, the covariance of the error needs to reflect this reset. Calling the error reset function $g()$, it is defined as \cite{Quaternion_Kinematics_for_the_Error-state_EKF}
 \begin{equation}
     \delta x \leftarrow g(\delta x) = \delta x \ominus \delta \hat{x}
     \label{eq: g() reset fnc}
@@ -338,7 +438,7 @@ The proof for the matrix $G$ can be found in \cite{Quaternion_Kinematics_for_the
 
 
 \subsection{Algorithm}
-In this section, the QEKF algorithm is outlined. The initial nominal state $\bar{x}_0$ and error state covariance $P_0$ are first initialized. The algorithm then has two optional steps given the current measurement. If IMU measurements are available, which are expected to be measured at a high rate, the propagation steps are followed. During propagation, the nominal state and error state covariance are updated. An additional check is included to ensure that the quaternion state maintains a norm close to one and if the norm has deviated the quaternion is normalized. If GPS measurements are available, which are collected at a slower rate, the state and covariance update steps are followed. The Kalman gain $K$ is first calculated and used to estimate the error state $\delta x_k$. This is then used to update the true state $x_k$ which is redefined to be the nominal state $\bar{x}_k$. The quaternion is again checked to ensure it is a unit quaternion. This is then followed by the update to the error state covariance which includes the error state reset matrix $G$. Note that the error state is always redefined as part of the correction step but no memory is given to the state which accomplishes the error reset. Also note that traditionally the state variables $\bar{x}$ and $\delta x$ are given the hat symbol $\hat{(\cdot)}$ to indicate that they are estimated but this notation was dropped to reduce clutter in the following algorithm.
+In this section, the QEKF algorithm is outlined. The initial nominal state $\bar{x}_0$ and error state covariance $P_0$ are first initialized. The algorithm then has three optional steps given what the current measurement is. If IMU measurements are available, which are expected to be measured at a high rate, the propagation steps are followed. During propagation, the nominal state and error state covariance are updated. An additional check is included to ensure that the quaternion state maintains a norm close to one and if the norm has deviated the quaternion is normalized. If GPS measurements are available, which are collected at a slower rate, the state and covariance update steps are followed. The Kalman gain $K$ is first calculated and used to estimate the error state $\delta x_k$. This is then used to update the true state $x_k$ which is redefined to be the nominal state $\bar{x}_k$. The quaternion is again checked to ensure it is a unit quaternion. This is then followed by the update to the error state covariance which includes the error state reset matrix $G$. Similar steps are followed if a magnetometer measurement is collected. However, the magnetometer update steps require a linearization about the current state to define $H_{Mag}$ and a normalization of the body frame measurement $\Tilde{y}_{Mag}$ is also required. Note that the error state is always redefined as part of the correction step but no memory is given to the state which accomplishes the error reset. Also note that traditionally the state variables $\bar{x}$ and $\delta x$ are given the hat symbol $\hat{(\cdot)}$ to indicate that they are estimated but this notation was dropped to reduce clutter in the following algorithm.
 \RestyleAlgo{ruled}
 \begin{algorithm}
 \caption{QEKF}\label{alg: QESKF}
@@ -355,14 +455,27 @@ $\bar{x}_0 = x_0$\;
         }
     }
     \If{$GPS$ $measurement$}{
-        $S = H P_k H^T + V$\;
-        $K = P_k H^T S^{-1}$\;
-        $\delta x_k^+ = K (\Tilde{y} - H \bar{x}_k )$\;
+        $S = H_{GPS} P_k H_{GPS}^T + N_{GPS}$\;
+        $K = P_k H_{GPS}^T S^{-1}$\;
+        $\delta x_k^+ = K (\Tilde{y}_{GPS} - H_{GPS} \bar{x}_k )$\;
         $\bar{x}_k^+ = \delta x_k^+ \oplus \bar{x}_k$\tcp{Estimated true state $x_k$ redefined as nominal state $\bar{x}_k$}
         \If{$\left|1 - \|\bar{q}_k\| \right| > 10^{-5}$}{
             $\bar{q}_k \gets \frac{\bar{q}_k}{\|\bar{q}_k\|}$\;
         }
-        $P_k^+ = (I - K H) P_k (I-K H)^T + K N K^T$\;
+        $P_k^+ = (I - K H_{GPS}) P_k (I-K H_{GPS})^T + K N_{GPS} K^T$\;
+        $P_k^{++} = G P_k^+ G^T$
+    }
+    \If{$Magnetometer$ $measurement$}{
+        $\Tilde{y}_{Mag,k}^+ = \frac{\Tilde{y}_{Mag,k}}{\lVert \Tilde{y}_{Mag,k} \rVert}$\;
+        $H_{Mag} = H_{x,Mag,k} X_{\delta x, k}$\;
+        $S = H_{Mag} P_k H_{Mag}^T + N_{Mag}$\;
+        $K = P_k H_{Mag}^T S^{-1}$\;
+        $\delta x_k^+ = K (\Tilde{y}_{Mag,k}^+ - R_k{\{\bar{q}_k\}}^T m_W )$\;
+        $\bar{x}_k^+ = \delta x_k^+ \oplus \bar{x}_k$\tcp{Estimated true state $x_k$ redefined as nominal state $\bar{x}_k$}
+        \If{$\left|1 - \|\bar{q}_k\| \right| > 10^{-5}$}{
+            $\bar{q}_k \gets \frac{\bar{q}_k}{\|\bar{q}_k\|}$\;
+        }
+        $P_k^+ = (I - K H_{Mag}) P_k (I-K H_{Mag})^T + K N_{Mag} K^T$\;
         $P_k^{++} = G P_k^+ G^T$
     }
 }

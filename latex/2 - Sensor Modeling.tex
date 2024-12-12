@@ -1,0 +1,127 @@
+\section{Sensor Modeling}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Purpose}
+In order to compare the QEKF and InEKF a drone simulation from the Mid-Air Dataset \cite{Fonder2019MidAir} was used which simulated low-altitude drone flights. Using the trajectory of the done, an Inertial Measurement Unit (IMU) containing an accelerometer and gyroscope as well as a GPS receiver and magnetometer were simulated. These sensors provide measurements that are received by each filter and must be correctly modeled by each filter to estimate the drone pose. This section explains how these sensors are modeled in simulation. These models will then be subsequently used in each filter in order to estimate the state of the drone.
+
+\subsection{IMU Continuous Time Model}
+The IMU consists of a model for the acceleration, angular rate, and random walk biases. These states are measured in the body frame of the drone. Overall, two coordinate frames will be used in this report. A body frame attached to the drone and a world frame are the initial starting point of the drone trajectory. Both frames use the North, East, and Down (NED) convention. The measured acceleration and angular rate of the drone in the body frame coordinates as well as the model of the biases are defined as
+\begin{subequations} \label{eq: measurement model}
+    \begin{align}
+        \Tilde{a} &= a + b^a + w^a, \quad w^a \sim \mathcal{N}(0_{3,1}, \sigma_{a}^2) \label{eq:accel meas} \\
+        \Tilde{\omega} &= \omega + b^{\omega} + w^{\omega}, \quad w^{\omega} \sim \mathcal{N}(0_{3,1}, \sigma_{\omega}^2) \label{eq:omega meas} \\
+        \dot{b}^a &= w^{ba}, \quad w^{ba} \sim \mathcal{N}(0_{3,1}, \sigma_{ba}^2) \label{eq:rw bias accel} \\
+        \dot{b}^{\omega} &= w^{b\omega}, \quad w^{b\omega} \sim \mathcal{N}(0_{3,1}, \sigma_{b\omega}^2) \label{eq:rw bias omega}
+    \end{align}
+\end{subequations}
+Each variable in the above equations is in $\mathbb{R}^3$ representing a component in the North, East, and Down directions for the respective coordinate frame. In equations \eqref{eq:accel meas} and \eqref{eq:omega meas}, the measured values $\Tilde{a}$ and $\Tilde{\omega}$ are the sum of the true values $a$ and $\omega$, the random walk biases $b^a$ and $b^{\omega}$, and the White Gaussian noises $w^a$ and $w^{\omega}$. Random walk biases are defined in equations \eqref{eq:rw bias accel} and \eqref{eq:rw bias omega} by integrating the White Gaussian noises $w^{ba}$ and $w^{b\omega}$. This simulates a slowly moving bias that drifts over time. The system dynamics of the drone can then be written as the following
+\begin{subequations} \label{eq: state dynamics}
+    \begin{align}
+        \dot{q} &= \frac{1}{2} q \otimes (\Tilde{\omega} - b^{\omega} - w^{\omega}) \label{eq:q dot} \\
+        \dot{R} &= R (\Tilde{\omega} - b^{\omega} - w^{\omega})_{\times} \label{eq:R dot} \\
+        \dot{v} &= R (\Tilde{a} - b^{a} - w^{a}) + g \label{eq:v dot} \\
+        \dot{p} &= v \label{eq:p dot}
+    \end{align}
+\end{subequations}
+Note that two methods are used to rotate measurements in the body frame to the world frame. The first method uses a quaternion denoted as $q \in \mathbb{R}^4$. The use of quaternion multiplication $\otimes$ is used in the definition and is defined further in \eqref{eq: quaternion multiplication}. The quaternion $q$ can also be written in this context as $q_{WB}$ to signify its use in rotating from the body to world frame. The second method is the rotation matrix $R \in \mathbb{R}^{3 \times 3}$  also written as $R_{WB}$. Additionally note that in equation \eqref{eq:v dot}, the acceleration is written with the inclusion of gravity $g$, which is sensed by the accelerometer.
+
+The angular rate $\omega$ is measured in the body frame and can be written formally as $\omega_B^{BW}$. This notation signifies that the angular rate is measured in the body frame and can be represented as a vector with a origin in the world frame pointing to the body frame. The skew operator $(\cdot)_{\times}$ used in equation \eqref{eq:R dot} is defined as
+\begin{equation}
+\omega_{\times} = 
+\begin{bmatrix}
+1 & -\omega_3 & \omega_2\\
+\omega_3 & 1 & -\omega_1\\
+-\omega_2 & -\omega_1 & 1
+\end{bmatrix}, \quad \omega = \begin{bmatrix}
+    \omega_1 \\
+    \omega_2 \\
+    \omega_3
+\end{bmatrix}
+\label{eq:skew}
+\end{equation}
+
+\subsection{Discrete IMU Time Model}
+
+Each filter in this report is written in discrete time, therefore, it is necessary to discretized each continuous time equation. This can be accomplished by assuming a zero order hold (ZOH) of the measurements over a time interval $\Delta t = t_k - t_{k-1}$. 
+
+The bias dynamics in Equations \eqref{eq:rw bias accel} and \eqref{eq:rw bias omega} are equal to White Gaussian noise. Therefore in propagating these equations forward in time the biases are simply
+\begin{equation}
+b^a_k = b^a_{k-1}, \quad b^{\omega}_k = b^{\omega}_{k-1}
+\label{eq: bias discrete}
+\end{equation}
+The orientation represented by the quaternion can be propagated using the Taylor series \cite{Quaternion_Kinematics_for_the_Error-state_EKF}. The series can be expanded and each quaternion derivative can be written in terms of $q$ and the measured angular rates. Setting $\dot{\omega}$ to zero over the ZOH yields the exponential which can be related to quaternions complex and real components as shown in \eqref{eq: q exp} and \eqref{eq: q exp with omega delta t}
+\begin{equation}
+    \begin{split}
+        q_k &= q_{k-1} + \dot{q}_{k-1} \Delta t + \frac{1}{2} \Ddot{q}_{k-1} \Delta t^2 + ...\\
+         &= q_{k-1} + \frac{1}{2} q_{k-1} \otimes (\Tilde{\omega} _{k-1}- b^{\omega}_{k-1}) \Delta t + \frac{1}{2} (\frac{1}{4} q_{k-1} \otimes (\Tilde{\omega} _{k-1}- b^{\omega}_{k-1})^2 \Delta t^2 + \frac{1}{2} q_{k-1} \otimes \frac{d}{dt}(\Tilde{\omega} _{k-1}- b^{\omega}_{k-1}) \Delta t^2) + ...\\
+        &= q_{k-1} \otimes (1 + \frac{1}{2} (\Tilde{\omega} _{k-1}- b^{\omega}_{k-1}) \Delta t + \frac{1}{2} (\frac{1}{4} (\Tilde{\omega} _{k-1}- b^{\omega}_{k-1}) \Delta t)^2 + ...)\\
+        &= q_{k-1} \otimes \exp{(\Tilde{\omega} _{k-1}- b^{\omega}_{k-1}) \Delta t} \\
+        &= q\left\{ (\Tilde{\omega}_{k-1} - b^{\omega}_{k-1}) \Delta t \right\} \\
+        &= 
+            \begin{bmatrix}
+                \cos{\left(\|\Tilde{\omega}_{k-1} - b^{\omega}_{k-1}\|  \frac{\Delta t}{2} \right)} \\
+                \frac{ (\Tilde{\omega}_{k-1} - b^{\omega}_{k-1})}{\|\Tilde{\omega}_{k-1} - b^{\omega}_{k-1}\|} \sin{\left( \|\Tilde{\omega}_{k-1} - b^{\omega}_{k-1}\|  \frac{\Delta t}{2} \right)} 
+            \end{bmatrix}
+    \end{split}
+\label{eq: quaternion discrete}
+\end{equation}
+Note that the White Gaussian noise term in $\Tilde{\omega}$ is dropped in \eqref{eq: quaternion discrete} because its mean is zero. Note also that equation \eqref{eq: quaternion discrete} essentially converts angular rates to a quaternion which can also be done using equation \eqref{eq: Euler to quaternion}. The orientation represented by the rotation matrix is propagated by the following equation
+\begin{equation}
+    R_k =  \int_{t_{k-1}}^{t_k} R (\Tilde{\omega} - b^{\omega})_{\times} \,dt = R_{k-1} \exp{( (\Tilde{\omega}_{k-1} - b^{\omega}_{k-1})_{\times} \Delta t)}
+\label{eq: rotation discrete}
+\end{equation}
+The discretized velocity can be then be written as
+\begin{equation}
+    \begin{split}
+        v_k &= v_{k-1} + g \Delta t + (\Tilde{a}_{k-1} - b^{a}_{k-1}) \int_{t_{k-1}}^{t_k} R dt \\
+            &= v_{k-1} + g \Delta t + R_{k-1} (\Tilde{a}_{k-1} - b^{a}_{k-1}) \int_{t_{k-1}}^{t_k} \exp{((\Tilde{\omega} - b^{\omega})t)} dt \\
+            &\approx v_{k-1} + g \Delta t + R_{k-1}(\Tilde{a}_{k-1} - b^{a}_{k-1}) (I \Delta t + \frac{1}{2} \Delta t^2 (\Tilde{\omega}_{k-1} - b^{\omega}_{k-1})_{\times})
+    \end{split}
+\label{eq: velocity discrete}
+\end{equation}
+Here the identity matrix is defined as $I \in \mathbb{R}^3$. Note that in \eqref{eq: velocity discrete}, the Taylor Series first order approximation is used in integrating the exponential $\exp{(\omega)} \approx I + \omega$. Intergrating equation \eqref{eq: velocity discrete} one more time yields the discrete position update
+\begin{equation}
+        p_k \approx p_{k-1} + \frac{1}{2} g \Delta t^2 + R_{k-1}(\Tilde{a}_{k-1} - b^{a}_{k-1}) (I \Delta t^2 + \frac{1}{2} \Delta t^3 (\Tilde{\omega}_{k-1} - b^{\omega}_{k-1})_{\times})
+\label{eq: position discrete}
+\end{equation}
+
+
+\subsection{GPS Model}
+
+The GPS receiver is simply modeled to solely receive a position estimate of the drone in the north, east, and down coordinate frame. This measurement is considered to be fairly accurate but is received at a slower rate than the acceleration and angular rate measurements. The measurement is modeled as 
+\begin{equation}
+       \Tilde{y}_{GPS} = y_{GPS} + \nu_{GPS}, \quad \nu \sim \mathcal{N}(0, \sigma_{y_{GPS}}^2)
+\label{eq: position gps}
+\end{equation}
+Here $\Tilde{y}_{GPS} \in \mathbb{R}^3$ is the received measurement from the GPS receiver. This measurement is equal to the true position, $y_{GPS} \in \mathbb{R}^3$, plus White Gaussian noise $\nu_{GPS} \in \mathbb{R}^3$.
+
+\subsection{Magnetometer Model}
+
+The magnetometer is modeled using the assumption that magnetic field $m_W$, in the world frame, is constant over the flight of the drone. The magnetic field has a north, east, and down component and is measured in the body frame attached to the drone producing a measurement $\Tilde{m}_B$. In this simulation, the drone is assumed to have a initial position in Redmond, Washington in Marymoor Park with at Latitude of $47.659^{\circ}$, Longitude of $-122.107^{\circ}$, and altitude of $0.0^{\circ}$. At this location the magnetic field, according to the 2020 World Magnetic Model (WMM) in nano teslas [nT] is \cite{wmm_calc}
+
+\begin{equation}
+    m_W = \begin{bmatrix}
+        18323 \\
+        4947 \\
+        49346 
+    \end{bmatrix}
+    \label{eq: m_W not normalized}
+\end{equation}
+Only the magnetic field directions are required, not the magnitudes, therefore any magnetic field vector $m$ can be normalize with the following formula
+\begin{equation}
+    m = \frac{m}{\lVert m \rVert} = \frac{1}{\sqrt{m_x^2 + m_y^2 + m_z^2}} \begin{bmatrix}
+        m_x & m_y & m_z
+    \end{bmatrix}^T
+    \label{eq: normalize mag field}
+\end{equation}
+
+The magnetic field is measured in the body frame. Therefore, a simple model for the measurement $\Tilde{m}_B \in \mathbb{R}^3$ is the world magnetic field rotated into the body frame plus White Gaussian noise $\nu_{Mag} \in \mathbb{R}^3$ where $m_W$ is normalized \cite{ahrs_ekf}
+\begin{equation}
+    \Tilde{m}_B = R^T m_W + \nu_{Mag}
+    \label{eq: mag measurement model}
+\end{equation}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% To do:
+% -> Break down equations for system dynamics into subequations. Then reference in InEFK background section when talking about right and left errors
+% -> Better proof for R equation

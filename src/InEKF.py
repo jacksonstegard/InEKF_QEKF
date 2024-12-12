@@ -6,11 +6,14 @@
 #   Description:
 #   This class defines the required methods for the Invarient Extended 
 #   Kalman Filter. A Right InEKF (World Error) model is used in 
-#   propergation. The use of a Left InEKF (Body error) is used during
-#   correction steps which is switched back to the Right InEKF once 
-#   updates are applied. The class assumes the use of accelerometer
-#   and gyroscope inputs as well as GPS inputs to estimate the state of 
-#   drone based off data collected in the MAD dataset.
+#   propergation of states and correction of magneometer measurements.
+#   The use of a Left InEKF (Body error) is used during correction 
+#   steps for GPS measurements which is switched back to the Right InEKF
+#   once updates are applied. Note that this class assumes the use of 
+#   IMU measurements from a accelerometer and gyroscope as well as
+#   potential other measurements that may or may not be included 
+#   for the correction step in the Kalman filter from a GPS reciever 
+#   and/or a Magneometer
 # ===================================================================
 
 # ---------------------------------
@@ -54,9 +57,14 @@ class InEKF:
         self.Q = self.Q_in.copy()
         
         # Initialize measurement covariance
-        self.N_in = np.diag(self.swapCovStates(initial_input['v']))
-        self.N_in = self.N_in[6:9,6:9] # Define reduced R matrix
-        self.N = self.N_in.copy()
+        self.N_in_gps = np.diag(initial_input['v_gps'])
+        self.N_gps = self.N_in_gps.copy()
+        
+        self.N_in_mag = np.diag(initial_input['v_mag'])
+        self.N_mag = self.N_in_mag.copy()
+        
+        # Initialize mag measurement (assumed constant over flight and already normalized)
+        self.m_w = initial_input['m_w']
         
         # Initialize time step, and gravity
         self.delta_t = initial_input['deltaT']
@@ -64,10 +72,14 @@ class InEKF:
         
         # Initialize initial measurment 
         self.u = np.zeros(6)
-        self.y = np.zeros(5)
+        self.y_gps = np.zeros(5)
+        self.y_mag = np.zeros(5)
         
         # Initialize useful constants
+        self.Z = np.zeros((3,3))
         self.I = np.eye(3)
+        self.I_15 = np.eye(15)
+        self.PI_Matrix = np.block([np.eye(3), np.zeros((3,2))]) # Define "PI" matrix to reduce demensions
         
     def swapCovStates(self, noise_in):
         # Convert array indices for noise vector (QEKF -> InEKF)
@@ -85,7 +97,7 @@ class InEKF:
     def updateF(self):
         # Define constants
         I = self.I
-        Z = np.zeros((3,3))
+        Z = self.Z
         delta_t = self.delta_t
         g = self.gravity
         
@@ -171,74 +183,122 @@ class InEKF:
         # Propagate covariance matrix
         self.P_r = self.F @ self.P_r @ self.F.T + self.Q
     
-    def getH(self):
-        # Define reduced left invarient H matrix
-        H = np.block([np.zeros((3,6)), np.eye(3), np.zeros((3,6))])
-        
-        return H
+    def updateH(self, meas_type):
+        if meas_type == 'gps':
+            # Define reduced left invarient H matrix
+            self.H = np.block([np.zeros((3,6)), np.eye(3), np.zeros((3,6))])
+            
+        elif meas_type == 'mag':
+            self.H = np.block([getSkew(self.m_w), np.zeros((3,12))])
     
-    def updateN(self):
+    def updateN(self, meas_type):
         # Get rotation matrix
         R = self.x[0:3,0:3]
         
-        # Update reduced left invarient measurement noise matrix
-        self.N = R.T @ self.N_in @ R
+        # Update depending on measurement being gps or mag
+        if meas_type == 'gps':
+            # Update reduced left invarient measurement noise matrix
+            self.N_gps = R.T @ self.N_in_gps @ R
+            
+        elif meas_type == 'mag':
+            # Update reduced right invarient measurement noise matrix
+            self.N_mag = R @ self.N_in_mag @ R.T
     
-    def correction(self, y):
-        # Update measurement y
-        self.y = np.block([y[0:3],0,1]) # First three elements are position, then zero and 1
-        
-        # Get measurment matrix
-        H = self.getH()
+    def correction(self, y, meas_type):        
+        # Update measurment matrix
+        self.updateH(meas_type)
         
         # Update measurement noise
-        self.updateN()
+        self.updateN(meas_type)
         
-        # Convert right invarient covariance to left invarient covariance 
-        adj_inv = adjointInv(self.x)
-        P_l = adj_inv @ self.P_r @ adj_inv.T
-        
-        # Get S matrix for Kalman gain
-        S = H @ P_l @ H.T + self.N
-        detS = np.linalg.det(S)
-        
-        # Check for singularity in S calculation and compute kalman gain K
-        if np.isclose(detS,0,1e-5):
-            # - Regularization ensures inverse exists
-            K = P_l @ H.T @ np.linalg.inv(S + np.eye(3) * 1e-5)
-        else:
-            # - Traditional K calculation
-            K = P_l @ H.T @ np.linalg.inv(S)
+        if meas_type == 'gps':
+            # Update the gps measurement
+            self.y_gps = np.block([y,0,1]) # First three elements are position, then zero and 1
             
-        # Split kalman gains
-        K_x = K[0:9,:]
-        K_theta = K[9:,:]
-        
-        # Define "PI" matrix to reduce demensions
-        PI_Matrix = np.block([np.eye(3), np.zeros((3,2))])
-        
-        # Get x inverse
-        x_inv = np.linalg.inv(self.x)
-        # x_inv = np.linalg.solve(self.x, np.eye(self.x.shape[0]))
-        
-        # Define x "residual" and take skew of nine element vector
-        x_vec_residual = K_x @ PI_Matrix @ x_inv @ self.y
-        x_residual = np.zeros((5,5))
-        x_residual[0:3,0:3] = getSkew(x_vec_residual[0:3])
-        x_residual[0:3,3] = x_vec_residual[3:6]
-        x_residual[0:3,4] = x_vec_residual[6:9]
-        
-        # Define theta "residual"
-        theta_vec_residual = K_theta @ PI_Matrix @ x_inv @ self.y
-        
-        # Update state tuple
-        self.x = self.x @ expm(x_residual)
-        self.theta = self.theta + theta_vec_residual.reshape(6, 1)
-        
-        # Update left invarient covaraince
-        I_15 = np.eye(15)
-        P_l = (I_15  - K @ H) @ P_l @ (I_15  - K @ H).T + K @ self.N @ K.T
-        
-        # Convert left invarient covaraince back to right invarient covarince
-        adj = adjoint(self.x)
-        self.P_r = adj @ P_l @ adj.T
+            # Convert right invarient covariance to left invarient covariance 
+            adj_inv = adjointInv(self.x)
+            P_l = adj_inv @ self.P_r @ adj_inv.T
+            
+            # Get S matrix for Kalman gain
+            S = self.H @ P_l @ self.H.T + self.N_gps
+            detS = np.linalg.det(S)
+            
+            # Check for singularity in S calculation and compute kalman gain K
+            if np.isclose(detS, 0, 1e-5):
+                # - Regularization ensures inverse exists
+                K = P_l @ self.H.T @ np.linalg.inv(S + np.eye(S.shape[0]) * 1e-7)
+            else:
+                # - Traditional K calculation
+                K = P_l @ self.H.T @ np.linalg.inv(S)
+                
+            # Split kalman gains
+            K_x = K[0:9,:]
+            K_theta = K[9:,:]
+            
+            # Get x inverse
+            x_inv = np.linalg.inv(self.x)
+            # x_inv = np.linalg.solve(self.x, np.eye(self.x.shape[0]))
+            
+            # Define x innovation and take skew of nine element vector
+            x_vec_innovation = K_x @ self.PI_Matrix @ x_inv @ self.y_gps
+            x_innovation = np.zeros((5,5))
+            x_innovation[0:3,0:3] = getSkew(x_vec_innovation[0:3])
+            x_innovation[0:3,3] = x_vec_innovation[3:6]
+            x_innovation[0:3,4] = x_vec_innovation[6:9]
+            
+            # Define theta innovation
+            theta_vec_innovation = K_theta @ self.PI_Matrix @ x_inv @ self.y_gps
+            
+            # Update state tuple
+            self.x = self.x @ expm(x_innovation)
+            self.theta = self.theta + theta_vec_innovation.reshape(6, 1)
+            
+            # Update left covaraince
+            P_l = (self.I_15  - K @ self.H) @ P_l @ (self.I_15  - K @ self.H).T + K @ self.N_gps @ K.T
+            
+            # Convert left covaraince back to right covarince
+            adj = adjoint(self.x)
+            self.P_r = adj @ P_l @ adj.T
+            
+        elif meas_type == 'mag':
+            # Normalize mag measurement
+            y = y / np.linalg.norm(y)
+            
+            # Update the mag measurement
+            self.y_mag = np.block([y,0,0])
+            
+            # Get S matrix for Kalman gain
+            S = self.H @ self.P_r @ self.H.T + self.N_mag
+            detS = np.linalg.det(S)
+            
+            # Check for singularity in S calculation and compute kalman gain K
+            if np.isclose(detS, 0, 1e-5):
+                # - Regularization ensures inverse exists
+                K = self.P_r @ self.H.T @ np.linalg.inv(S + np.eye(S.shape[0]) * 1e-5)
+            else:
+                # - Traditional K calculation
+                K = self.P_r @ self.H.T @ np.linalg.inv(S)
+                
+            # Split kalman gains
+            K_x = K[0:9,:]
+            K_theta = K[9:,:]
+            
+            # Define x innovation and take skew of nine element vector
+            x_vec_innovation = K_x @ (self.PI_Matrix @ self.x @ self.y_mag - self.m_w)
+            x_innovation = np.zeros((5,5))
+            x_innovation[0:3,0:3] = getSkew(x_vec_innovation[0:3])
+            x_innovation[0:3,3] = x_vec_innovation[3:6]
+            x_innovation[0:3,4] = x_vec_innovation[6:9]
+            
+            # Define theta innovation
+            theta_vec_innovation = K_theta @ (self.PI_Matrix @ self.x @ self.y_mag - self.m_w)
+            
+            # Update state tuple
+            self.x = expm(x_innovation) @ self.x
+            self.theta = self.theta + theta_vec_innovation.reshape(6, 1)
+            
+            # Update right covaraince
+            self.P_r = (self.I_15  - K @ self.H) @ self.P_r @ (self.I_15  - K @ self.H).T + K @ self.N_mag @ K.T
+
+        else:
+            raise ValueError(f"Error: Unknown Measurement type named: {meas_type}!")

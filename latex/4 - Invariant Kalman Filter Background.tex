@@ -1,9 +1,9 @@
 \section{Invariant Extended Kalman Filter}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Purpose}
-This section will provide the necessary background to implement the InEKF. The InEKF is a more recent filter design as of 2015 first purposed in ``The Invariant Extended Kalman filter as a stable observer'' \cite{DBLP:journals/corr/BarrauB14}. The filter uses the theory of Lie groups and log-linear error dynamics to achieve a invariant Extended Kalman Filter. This formulation allows the error dynamics to be independent of the system trajectory, avoid linearization dependent on the current state estimate, and lead to improved convergence \cite{Contact-Aided_Invarant_EKF}. Furthermore, Lie groups are singularity free which like the QEKF prevents ``gimbal lock''. However, this invariant system is not always achievable and depends upon how the states are characterized using matrix Lie groups.
+This section will provide the necessary background to implement the InEKF. The InEKF is a more recent filter design as of 2015 first purposed in ``The Invariant Extended Kalman filter as a stable observer'' \cite{DBLP:journals/corr/BarrauB14}. The filter uses the theory of Lie groups and log-linear error dynamics to achieve an invariant extended Kalman filter. This formulation allows error dynamics to be independent of the system trajectory, avoid linearization dependent on the current state estimate, and leads to improved convergence \cite{Contact-Aided_Invarant_EKF}. Furthermore, Lie groups are singularity-free which, like the QEKF, prevents ``gimbal lock''. However, this invariant system is not always achievable and depends on how the states are characterized using matrix Lie groups.
 
-In this section, a background on matrix Lie groups and Lie algebra is first described. The specific formulation of a Right InEKF with a Left InEKF measurement model for this drone state estimation problem is then detailed which is followed by a outline of the InEKF algorithm.
+In this section, a background on matrix Lie groups and Lie algebra is first described. The specific formulation of a Right InEKF with a Left and Right InEKF measurement models for this drone state estimation problem is then detailed. An outline of this entire algoirthm is then provided.
 
 
 \subsection{Background}
@@ -12,7 +12,7 @@ A Lie group $\mathcal{G}$ is a set of elements that for a operation combine any 
     SO(3)=\left\{R \in \mathbb{R}^{3 \times 3} \mid R R^T=I, \operatorname{det} (R)=1\right\}
     \label{eq: SO3 group}
 \end{equation}
-The representation of pose can also be defined through the Special Euclidean Group which in the case of this paper will be the $SE_2(3)$ group defining the rotation matrix, velocity, and position as the entire pose
+The representation of pose can also be defined through the Special Euclidean Group which in the case of this paper will be the $SE_2(3)$ group defining the rotation matrix, velocity, and position as the entire pose $X \in SE_2(3)$
 \begin{equation}
     SE_2(3) = \left\{X = \begin{bmatrix}
     R & v & p\\
@@ -53,7 +53,7 @@ Where $\text{Exp}()$ is defined in terms of the matrix exponential $ \exp_m{(\cd
     \text{Exp}(\xi) = \exp_m{(\xi^{\wedge})}
     \label{eq: matrix exp def}
 \end{equation}
-Note that in equation \eqref{eq: exp map}, the exponential $\text{Exp}{(\cdot)}$ is the matrix exponential $\exp_m{(\cdot)}$ of the Lie algebra element $(\xi)_{\times}$ which differs from the previous uses of $\exp{(\cdot)}$ used to take the exponential of a vector or scalar. Another key concept in Lie group theory is the adjoint representation, which is a linear map used to move vectors of the Lie algebra between tangent spaces of two group elements \cite{Contact-Aided_Invarant_EKF}
+Note that the previous uses of $\exp{(\cdot)}$ was used to take the exponential of a vector or scalar. Another key concept in Lie group theory is the adjoint representation, which is a linear map used to move vectors of the Lie algebra between tangent spaces of two group elements \cite{Contact-Aided_Invarant_EKF}
 \begin{equation}
     Ad_X : \mathfrak{g} \rightarrow \mathfrak{g}
     \label{eq: adj g->g}
@@ -81,7 +81,7 @@ Here the deterministic system dynamics are rotation matrix, velocity, and positi
         \label{eq: left and right errors}
     \end{align}
 \end{subequations}
-In both the QEKF and the InEKF, the right error corresponds to the world frame, while left error corresponds to the body frame. This distinction arises from the world-centric system dynamic equations used to model the IMU dynamics. This definition of left and right error is also applied to quaternions. The left error formulation is used when updating the nominal quaternion because the angular rate is measured in the body frame. The right error is used during the state update as the estimated angular error is in the world frame. 
+In both the QEKF and the InEKF, the right error corresponds to the world frame error, while left error corresponds to the body frame error. This distinction arises from the world-centric system dynamic equations used to model the IMU dynamics. This definition of left and right error is also applied to quaternions. The left error formulation is used when updating the nominal quaternion during propagation because the angular rate is measured in the body frame. The right error is used during the correction step as the estimated angular error is in the world frame. 
 
 With the background provided so far, the following two important theorems from \cite{DBLP:journals/corr/BarrauB14} provide the essential guarantees for the InEKF.
 
@@ -97,7 +97,7 @@ for all time $t > 0$ and $X_1, X_2 \in G$. If this condition is satisfied, the r
     \frac{d}{dt} \eta^l(t) &= g_u(\eta_l(t)) = f_t(\eta^l(t)) + f_t(I_d) \eta^l(t).
 \end{align}
 \end{theorem}
-Here $I_d \in \mathcal{G}$ and is the group identity element. This theorem defines state independent differential equations for the left and right errors making the error dynamics invariant subject to satisfying condition \eqref{eq: L invarient conditon}. This invariance of the estimation error means there will exist no dependence on the current state estimate removing all possible linearization errors. The right or left error can be linearized by the following equation with $A \in \mathbb{R}^{dim \mathfrak{g} \times dim \mathfrak{g}}$\cite{Contact-Aided_Invarant_EKF}
+Here $I_d \in \mathcal{G}$ and is the group identity element with dimension $d$ from the error $\xi \in \mathbb{R}^d$. This theorem defines state independent differential equations for the left and right errors making the error dynamics invariant subject to satisfying condition \eqref{eq: L invarient conditon}. This invariance of the estimation error means there will exist no dependence on the current state estimate removing all possible linearization errors. The right or left error can be linearized by the following equation with $A \in \mathbb{R}^{dim \mathfrak{g} \times dim \mathfrak{g}}$\cite{Contact-Aided_Invarant_EKF}
 \begin{equation}
     g_u(\text{Exp}(\xi)) = (A \xi)^{\wedge} + \mathcal{O}(\|\xi\|^2)
     \label{eq: Linearization InEKF}
@@ -116,10 +116,10 @@ Consider the right or left invariant error, $\eta$, between any two trajectory. 
 \end{equation}
 Thus, the nonlinear estimation error $\eta$ can be precisely recovered from the the time-varying linear differential equation \eqref{eq: xi diffEq}
 \end{theorem}
-Therefore these error dynamics allow the left or right error invariant error on the Lie group to be exactly recovered. This allows for the covariance to be exactly propagated in the case without any noise.
+Therefore these log-linear error dynamics allow the left or right error invariant error on the Lie group to be exactly recovered. This allows for the covariance to be exactly propagated in the case without any noise.
 
 \subsection{Process Model}
-The InEKF is based upon the theoretical background described in the previous section. However, the noise and biases must be considered in the formulation of the system dynamics. This results in decoupling the states into a state tuple. This state tuple consists of a Lie group defined for $SE_2(3)$ \eqref{eq: SE3_2 group} and parameter vector for the biases. The error state dynamics are then defined through a linearization of the group error $\eta^r$. The choice of a Right InEKF model for propagation is used such that the error is in the world frame. 
+The InEKF is based upon the theoretical background described in the previous section. However, the noise and biases must be considered in the formulation of the system dynamics. This results in decoupling the states into a state tuple. This state tuple consists of a Lie group defined for $SE_2(3)$ \eqref{eq: SE3_2 group} and a parameter vector for the biases. The error state dynamics are then defined through a linearization of the group error $\eta^r$. The choice of a Right InEKF model for propagation is used such that the error is in the world frame. 
 
 As determined in \cite{DBLP:journals/corr/BarrauB14}, there is no Lie group that can include the bias states and meets the group affine property \eqref{eq: L invarient conditon}. Therefore, an inexact InEKF is designed so that the bias states can be included. A parameter vector $\Theta$ can be estimated as part of the Right InEKF state \cite{Contact-Aided_Invarant_EKF}
 \begin{equation}
@@ -129,7 +129,7 @@ As determined in \cite{DBLP:journals/corr/BarrauB14}, there is no Lie group that
     \end{bmatrix}  \in \mathbb{R}^6
     \label{eq: Theta RInEKF}
 \end{equation}
-The state tuple model can now be written as the Lie group and parameter vector \cite{Contact-Aided_Invarant_EKF}
+The error state tuple model can now be written as the Lie group and parameter vector \cite{Contact-Aided_Invarant_EKF}
 \begin{equation}
     e^r = (\eta^r, \zeta) = (\hat{X} X^{-1}, \hat{\Theta} - \Theta) \in \mathbb{R}^{5 \times 5} \times \mathbb{R}^6
     \label{eq: e^r state tuple}
@@ -196,7 +196,8 @@ Here the noise $w$ is defined as
     0_{3 \times 1} \\
     w^{b \omega} \\
     w^{b a}
-    \end{bmatrix} \label{eq: w RInEKF}
+    \end{bmatrix} \in \mathbb{R}^{15}
+    \label{eq: w RInEKF}
 \end{equation}
 Note that when incorporating the noise, the adjoint is used in the right error model. This is done because the noise is defined for the Lie algebra in the body frame. Therefore, because the right error model is in the world frame, the adjoint is used to move the body noise into the world frame. 
 
@@ -213,7 +214,7 @@ Once differentiated, the error dynamics of the Lie group must be linearized whic
     \eta^r = \text{Exp}(\xi) \approx I_d + (\xi)^{\wedge}
     \label{eq: eta first order approx}
 \end{equation}
-Here $I_d$ is the identity matrix with dimension $d$ from the error $\xi \in \mathbb{R}^d$. This linearization is done each of Lie group errors. Using this approximation, the true values for the rotation is
+This linearization is done for each of Lie group errors. Using this approximation, the true rotation, velocity and position can be defined. This equations can then be used in linearizing each Lie group error. The true rotation approximation is
 \begin{equation}
     \begin{split}
         \eta^R &= \hat{R} R^T  \\
@@ -230,8 +231,8 @@ The true velocity can be approximated as
         \xi^v & = \hat{v} - \hat{R} R^T v \\ 
         v &= (\hat{R} R^T)^T (-\xi^v + \hat{v}) \\
         & \approx (I + (\xi^R)_{\times})^T (-\xi^v + \hat{v}) \\
-        & \approx -\xi^v + \hat{v} - \xi^R_{\times} \hat{v} \\
-        & = -\xi^v + \hat{v} + \hat{v}_{\times} \xi^R
+        & \approx -\xi^v + \hat{v} - (\xi^R)_{\times} \hat{v} \\
+        & = -\xi^v + \hat{v} + (\hat{v})_{\times} \xi^R
         \label{eq: approx true v InEKF}        
     \end{split}
 \end{equation}
@@ -242,8 +243,8 @@ Additionally, the true position is approximated as
         \xi^p & = \hat{p} - \hat{R} R^T p \\ 
         p &= (\hat{R} R^T)^T (-\xi^p + \hat{p}) \\
         & \approx (I + (\xi^R)_{\times})^T (-\xi^p + \hat{p}) \\
-        & \approx -\xi^p + \hat{p} - \xi^R_{\times} \hat{p} \\
-        & = -\xi^p + \hat{p} + \hat{p}_{\times} \xi^R
+        & \approx -\xi^p + \hat{p} - (\xi^R)_{\times} \hat{p} \\
+        & = -\xi^p + \hat{p} + (\hat{p})_{\times} \xi^R
         \label{eq: approx true p InEKF}        
     \end{split}
 \end{equation}
@@ -268,12 +269,12 @@ Using these approximations and neglecting second-order error terms, the lineariz
 \end{equation}
 Note that the following property is  used when taking the transpose of vector that is skewed
 \begin{equation}
-    (V)_{\times}^T = -V_{\times}
+    (a)_{\times}^T = -(a)_{\times}
     \label{eq: transpose of skew}
 \end{equation}
-Here the vector $V$ is defined as $V \in \mathbb{R}^3$. Additionally, the following property is used to reorganize the terms
+Here the vector $a$ is defined as $a \in \mathbb{R}^3$. Additionally, the following property is used to reorganize the terms
 \begin{equation}
-    R (V)_{\times} R^T = (R V)_{\times}
+    R (a)_{\times} R^T = (R a)_{\times}
     \label{eq: RvR^T property}
 \end{equation}
 The derived velocity approximations and second-order terms can also be used to linearize the velocity error
@@ -327,7 +328,7 @@ With these linearization the right continuous time matrix $A^r$ for the error dy
     \end{bmatrix}
     \label{eq: A^r RInEKF}
 \end{equation}
-Note that with the inclusion of the biases in $A^r$ means the matrix must be linearized about the current state for each time step. Without the biases this is not required and $A^r$ is invariant for error propagation. In order to discretize $A^r$, a Euler approximation can be used which was also done for the quaternion Kalman Filter
+Note that with the inclusion of the biases in $A^r$, the matrix must be linearized about the current state for each time step. Without the biases this is not required and $A^r$ is invariant for error propagation. In order to discretize $A^r$, a Euler approximation can be used which was also done for the quaternion Kalman Filter
 \begin{equation}
     \begin{split}
         F^r &= \exp(A^r) \approx I_{15} + \Delta t A^r \\
@@ -373,9 +374,52 @@ It should be noted that when updating the rotation matrix it should be inspected
     \label{eq: normalize R}
 \end{equation}
 
-
 \subsection{Measurement Model}
-The GPS measurement is collected relative to a world frame. This makes the update for the InEKF more difficult because the Right InEKF measurement update requires a measurement in the body frame while propagating the state covariance in the world frame. Therefore, the Left InEKF is required for the measurement update. This can be accomplished by switching the Right InEKF covariance to the Left InEKF using the adjoint. After performing the update to the left covariance, the left covariance can then be switched back to the right covariance for propagation. The derivation for switching between the left and right error is as follows \cite{Contact-Aided_Invarant_EKF} using the original definition of the adjoint defined in this report \eqref{eq: Ad x xi x^T} 
+The InEKF measurement models must fit either a left or right error form corresponding to a measurement $\Tilde{y}$ in the world or body frame \cite{9444664}. The observation models take the following form
+\begin{equation}
+    \Tilde{y}^l = X b + \nu^l
+    \label{eq: InEKF left observation}
+\end{equation}
+\begin{equation}
+    \Tilde{y}^r = X^{-1} b + \nu^r
+    \label{eq: InEKF right observation}
+\end{equation}
+Here a constant vector $b$ is used to relate the Lie group to the measurement and $\nu$ is additive White Gaussian noise. The right and left innovations are given as
+
+\begin{equation}
+    V^l = \hat{X}^{-1} (\Tilde{y}^l - \hat{y}^l)
+    \label{eq: InEKF left innovation}
+\end{equation}
+\begin{equation}
+    V^r = \hat{X} (\Tilde{y}^r - \hat{y}^r)
+    \label{eq: InEKF right innovation}
+\end{equation}
+The estimate of the measurement is denoted as $\hat{y}$.
+
+During the correction step of the Kalman filter, distinctions must be made between the Lie group states $X$ and the bias states $\Theta$ in the state tuple. Once the Kalman gain is calculated, the gain can be split up into gain for the Lie group $K^{\xi} \in \mathbb{R}^{9 \times 3}$ and bias states $K^{\zeta} \in \mathbb{R}^{6 \times 3}$
+\begin{equation}
+    K = \begin{bmatrix}
+        K^{\xi} \\
+        K^{\zeta}
+    \end{bmatrix}
+    \label{eq: Kalman gain for LInEKF}
+\end{equation}
+Using these gains, the state tuple can be updated. The typical Kalman update for vectors can be used for the bias states. However, in order to update the Lie group $X$, the error state $\xi$ must be mapped to the Lie group. This is done using the exponential map and the skew operator as shown in equations \eqref{eq: exp map} and \eqref{eq: matrix exp def}. Once mapped, the Lie group $X$ can be updated through matrix multiplication. The state corrections for the GPS and magnetometer measurements are defined as follows and further detailed in the next two sections
+\begin{equation}
+    \textbf{GPS:} \left( \hat{X}_k^+, \hat{\Theta}_k^+, \right) = 
+    \left( \hat{X}_k \, \text{Exp} \left( K^{\xi}_k \, \big(\Pi \hat{X}_k^{-1} \Tilde{y}_{k}^l \big) \right), 
+    \, \hat{\Theta}_k + K_k^{\zeta} \left( \Pi \hat{X}_k^{-1} \Tilde{y}_{k}^l  \right) \right)
+    \label{eq: gps state tuple correction update}
+\end{equation}
+\begin{equation}
+    \textbf{Magnetometer:}\left( \hat{X}_k^+, \hat{\Theta}_k^+, \right) = 
+    \left(  \text{Exp} \left( K^{\xi}_k \, \big(\Pi \hat{X}_k \Tilde{y}_{k}^r - m_W \big) \hat{X}_k \right), 
+    \, \hat{\Theta}_k + K_k^{\zeta} \left(\Pi \hat{X}_k \Tilde{y}_{k}^r - m_W \right) \right)
+    \label{eq: mag state tuple correction update}
+\end{equation}
+
+\subsubsection{GPS Model}
+The GPS measurement is collected in the world frame. This makes the update for the InEKF more difficult because the Right InEKF measurement update requires a measurement in the body frame while propagating the state covariance in the world frame. Therefore, the Left InEKF is required for the GPS world measurement update. This can be accomplished by switching the Right InEKF covariance to the Left InEKF using the adjoint. After performing the update to the left covariance, the left covariance can then be switched back to the right covariance for propagation. The derivation for switching between the left and right error is as follows \cite{Contact-Aided_Invarant_EKF} using the original definition of the adjoint defined in this report \eqref{eq: Ad x xi x^T} 
 \begin{equation}
     \begin{split}
         \eta^r &= \hat{X} X^{-1} = \hat{X} \eta^l \hat{X}^{-1} \\
@@ -384,7 +428,7 @@ The GPS measurement is collected relative to a world frame. This makes the updat
     \end{split}
     \label{eq: xi^l -> xi^r}
 \end{equation}
-The right covariance matrix conversion is then
+The right to left covariance matrix conversion is then
 \begin{equation}
     \begin{split}
         P^r &= \mathrm{E}[\xi^r (\xi^r)^T] \\
@@ -409,21 +453,24 @@ Because biases are used in the error, the switching of the covariances can be ac
         \label{eq: Switch covariance right/left}
     \end{align}
 \end{subequations}
-Note that this conversion is imperfect but without the bias this conversion is exact. 
+Note that this conversion is imperfect, but without the bias this conversion is exact. 
 
-The left measurement model takes the following form \cite{Contact-Aided_Invarant_EKF}
+In the Left InEKF, the measurement $\Tilde{y}^l$ is defined as the GPS measurement $\Tilde{y}_{GPS}$ augmented with a zero and a one in the vector. The left noise $\nu^l$ is additionally augmented with the GPS noise $\nu_{GPS}$ to account for the size of the left measurement. Furthermore, $b$ is used to relate the Lie group to the GPS measurement. The GPS measurement model is defined as 
 \begin{equation}
-    \Tilde{y}^l = \hat{X} b + \nu
-    \label{eq: left measurement form}
-\end{equation}
-In the Left InEKF, the measurement $\Tilde{y}$ and the constant vector b used to relate the Lie group to the measurement are defined as 
-\begin{equation}
-    \Tilde{y} = \begin{bmatrix}
-        \Tilde{y}_p \\
+    \Tilde{y}^l = \begin{bmatrix}
+        \Tilde{y}_{GPS} \\
         0 \\
         1
-    \end{bmatrix}
+    \end{bmatrix} = X b + \nu^l
     \label{eq: y meas LInEKF}
+\end{equation}
+\begin{equation}
+    \nu^l = \begin{bmatrix}
+        \nu_{GPS} \\
+        0 \\
+        0
+    \end{bmatrix}
+    \label{eq: left measurment noise}
 \end{equation}
 \begin{equation}
     b = \begin{bmatrix}
@@ -432,29 +479,31 @@ In the Left InEKF, the measurement $\Tilde{y}$ and the constant vector b used to
     \end{bmatrix}
     \label{eq: b LInEKF}
 \end{equation}
-The Kalman filter update uses the measurement Jacobian $H$. To relate the $H$ to $b$ and the Lie group state $X$, the following approximation can be done by rearranging equation \eqref{eq: y meas LInEKF} for the measurement innovation $\nu$
+The Kalman filter update for a Left InEKF uses the Jacobian $H^l$. To relate $H^l$ to $b$ and the Lie group state $X$, the following expansion of the innovation $V^l$ is performed using the innovation equation \eqref{eq: InEKF left innovation}
 \begin{equation}
     \begin{split}
-        \nu &= \hat{X}^{-1} \Tilde{y} - b \\
-            &= \hat{X}^{-1} (X b + \nu) - b \\
-            &= (\eta^l)^{-1} b + \hat{X}^{-1} \nu - b \\
-            &\approx (I + (\xi^l)_{\times})^T b + \hat{X}^{-1} \nu - b \\
-            &= -(\xi^l)_{\times} b + \hat{X}^{-1} \nu  \\
-            &\Rightarrow (\xi^l)_{\times} b + \hat{X}^{-1} \nu \triangleq H \xi^l + \hat{X}^{-1} \nu
+        V^l &= \hat{X}^{-1} (\Tilde{y}^l  - \hat{y}^l ) \\
+            &= \hat{X}^{-1} (X b + \nu^l - \hat{X} b) \\
+            &= (\eta^l)^{-1} b + \hat{X}^{-1} \nu^l - b \\
+            &\approx (I_d + (\xi^l)_{\times})^T b + \hat{X}^{-1} \nu^l - b \\
+            &= -(\xi^l)_{\times} b + \hat{X}^{-1} \nu^l  \\
+            &\Rightarrow (\xi^l)_{\times} b + \hat{X}^{-1} \nu^l := H^l \xi^l + \hat{X}^{-1} \nu^l
         \label{eq: H proof for LInEKF}
     \end{split}
 \end{equation}
-Note that the innovation can be reduced in dimensions by dropping the last two rows with zeros
+Note that the negative is dropped in the last part of the above equation because $H^l$ multiplies $\xi^l$ on the left side so the skew property from \eqref{eq: transpose of skew} is used. Additionally, note that the innovation can be reduced in dimensions by dropping the last two rows with zeros as well as the noise term
 \begin{equation}
     \begin{split}
-        \nu &= \hat{X}^{-1} \Tilde{y} - b\\
+        V^l &= \hat{X}^{-1} (\Tilde{y}^l  - \hat{y}^l ) \\
+        &= \hat{X}^{-1} (\Tilde{y}^l - \hat{X} b) \\
+        &= \hat{X}^{-1} \Tilde{y}^l  - b\\
         &= \begin{bmatrix}
             \hat{R}^T & -\hat{R}^T \hat{v} & -\hat{R}^T \hat{p} \\
             0 & 1 & 0\\
             0 & 0 & 1
         \end{bmatrix}
         \begin{bmatrix}
-            \Tilde{y}_p \\
+            \Tilde{y}_{GPS} \\
             0 \\
             1
         \end{bmatrix}
@@ -466,52 +515,172 @@ Note that the innovation can be reduced in dimensions by dropping the last two r
         \end{bmatrix} \\
         &= 
         \begin{bmatrix}
-            -\hat{R}^T \Tilde{y}_p \\
+            -\hat{R}^T \Tilde{y}_{GPS} \\
             0 \\
             0
         \end{bmatrix} \\
-        &\triangleq -\hat{R}^T \Tilde{y}_p
+        &:= -\hat{R}^T \Tilde{y}_{GPS}
     \end{split}
     \label{eq: innovation meas LInEKF}
 \end{equation}
-Therefore, the innovation can be updated simplified by including a selection matrix \cite{DBLP:journals/corr/BarrauB14} $\Pi = \begin{bmatrix}
-    I & 0_{3 \times 2} \end{bmatrix}$
+Therefore, the innovation can be simplified by including a selection matrix as done in \cite{DBLP:journals/corr/BarrauB14} defined as $\Pi = \begin{bmatrix}
+    I & 0_{3 \times 2} \end{bmatrix}$ which is equivalent to the above expression 
 \begin{equation}
-    \nu = \hat{X}^{-1} \Tilde{y} - b \triangleq \Pi \hat{X}^{-1} \Tilde{y}
+    V^l = \hat{X}^{-1} \Tilde{y}^l - b := \Pi \hat{X}^{-1} \Tilde{y}^l
     \label{eq: reduced measurement residual}
 \end{equation} 
-Inspecting equation \eqref{eq: H proof for LInEKF}, H can be defined as follows and then reduced in a similar manner as done for the innovation
+Inspecting equation \eqref{eq: H proof for LInEKF}, $H^l$ can be defined for the GPS measurement as follows and then reduced in a similar manner as done for the innovation
 \begin{equation}
-    H = \begin{array}{c}
+    H_{GPS} = \begin{array}{c}
         \begin{bmatrix}
             0_{3 \times 6} & I & 0_{3 \times 6} \\
             \multicolumn{3}{c}{0_{4 \times 15}}
-        \end{bmatrix} \triangleq \begin{bmatrix}
+        \end{bmatrix} := \begin{bmatrix}
         0_{3 \times 6} & I & 0_{3 \times 6}
     \end{bmatrix}
     \end{array}
     \label{eq: H full for LInEKF}
 \end{equation}
-The dimensions of the measurement noise matrix $N$ can be also be reduced. For the left invariant form of the measurement noise matrix can be simplified to be $\mathbb{R}^{3 \times 3}$ matrix. The left invariant error is defined as follows \cite{Contact-Aided_Invarant_EKF}
+The dimensions of the measurement noise covariance matrix $N_{GPS}$ can be also be reduced to a $\mathbb{R}^{3 \times 3}$ matrix \cite{Contact-Aided_Invarant_EKF}
 \begin{equation}
-    V^l = \hat{R}^{-1} \mathrm{cov}(\nu) \hat{R} = \hat{R}^T \sigma_{\Tilde{y}_p}^2 \hat{R}
+    N_{GPS} = \hat{X}^{-1} \mathrm{cov}(\nu_{GPS}) \hat{X} := \hat{R}^T \sigma_{\Tilde{y}_{GPS}}^2 \hat{R}
 \end{equation}
 
-During the correction step of the Kalman filter, distinctions must be made between the Lie group states $X$ and the bias states $\Theta$ in the state tuple. Once the Kalman gain is calculated, the gain can be split up into gain for the Lie group $K^{\xi} \in \mathbb{R}^{9 \times 3}$ and bias states $K^{\zeta} \in \mathbb{R}^{6 \times 3}$
+\subsubsection{Magnetometer Model}
+The magnetometer measurement is in the body frame, therefore, the Right InEKF is the appropriate InEKF filter to use. This means the covariance will not need to be swapped from the right to left form as was done with the GPS measurement. The magnetometer measurement model for the Right InEKF is defined as
 \begin{equation}
-    K = \begin{bmatrix}
-        K^{\xi} \\
-        K^{\zeta}
+    \Tilde{y}^r = \begin{bmatrix}
+        \Tilde{y}_{Mag} \\
+        0 \\
+        1
+    \end{bmatrix} = X^{-1} b + \nu^r
+    \label{eq: y meas RInEKF}
+\end{equation}
+\begin{equation}
+    \nu^r = \begin{bmatrix}
+        \nu_{Mag} \\
+        0 \\
+        0
     \end{bmatrix}
-    \label{eq: Kalman gain for LInEKF}
+    \label{eq: right measurment noise}
 \end{equation}
-Using these gains the state tuple can be updated. The typical update for vectors can be used for the bias states. However, in order to update the Lie group $X$, the error state $\xi$ must be mapped to the Lie group. This can be done using the exponential map and skew operator as shown in equations \eqref{eq: exp map} and \eqref{eq: matrix exp def}. Once mapped, the Lie group $X$ can be updated through matrix multiplication
 \begin{equation}
-    \left( \hat{X}_k^+, \hat{\Theta}_k^+, \right) = 
-    \left( \hat{X}_k \, \text{Exp} \left( K^{\xi}_k \, \big(\Pi \hat{X}_k^{-1} \Tilde{y}_k \big) \right), 
-    \, \hat{\Theta}_k + K_k^{\zeta} \left( \Pi \hat{X}_k^{-1} \Tilde{y}_k \right) \right)
-    \label{eq: state tuple correction update}
+    b := \begin{bmatrix}
+        m_W \\
+        0_{2 \times 1}
+    \end{bmatrix}
+    \label{eq: b RInEKF}
 \end{equation}
+Note that $b$ is redefined for the Magnetometer model. The Jacobain $H^r$ can be related to the Lie algebra element $\xi^r$ by expanding the right innovation equation \eqref{eq: InEKF right innovation}
+\begin{equation}
+    \begin{split}
+        V^r &= \hat{X} (\Tilde{y}^r - \hat{y}^r) \\
+            &= \hat{X} (X^{-1} b + \nu^r - \hat{X}^{-1} b) \\
+            &= \eta_r b + \hat{X} \nu^r - b \\
+            &\approx (I_d + (\xi^r)_{\times}) b + \hat{X} \nu^r - b \\
+            &= (\xi^r)_{\times}) b + \hat{X} \nu^r \\
+            &\Rightarrow -(\xi^r)_{\times}) b + \hat{X} \nu^r = H^r \xi^r + \hat{X} \nu^r \\
+    \end{split}
+    \label{eq: H for mag derivation}
+\end{equation}
+Note that the negative is introduced in the last part of the above equation because $H^r$ multiplies $\xi^r$ on the left side so the skew property from \eqref{eq: transpose of skew} is used. Similar to the GPS measurement, the innovation can be reduced in dimensions again by dropping the last two rows. The reduced dimension innovation is
+\begin{equation}
+    \begin{split}
+        V^r &= \hat{X} (\Tilde{y}^r - \hat{y}^r) \\
+            &= \hat{X} (\Tilde{y}^r - \hat{X}^{-1} b) \\
+            &= \hat{X} \Tilde{y}^r - b \\
+            &= \begin{bmatrix}
+            \hat{R} & \hat{v} & \hat{p} \\
+            0 & 1 & 0\\
+            0 & 0 & 1
+        \end{bmatrix} 
+        \begin{bmatrix}
+            \Tilde{y}_{Mag} \\
+            0 \\
+            0
+        \end{bmatrix} - 
+        \begin{bmatrix}
+            m_W \\
+            0 \\
+            0
+        \end{bmatrix} \\
+        &= \begin{bmatrix}
+            R \Tilde{y}_{Mag} - m_W  \\
+            0 \\
+            0
+        \end{bmatrix} \\
+        &:= R \Tilde{y}_{Mag} - m_W \\
+        &= \Pi \hat{X} \Tilde{y}_{Mag} - m_W \\
+    \end{split}
+    \label{eq: reduced innovation mag InEKF}
+\end{equation}
+To determine the Jacobain for the magnetometer $H_{Mag}$, the derivation from \eqref{eq: reduced innovation mag InEKF} can be used to determine the right Jacobain $H^r$. In equation \eqref{eq: reduced innovation mag InEKF}, it was shown that after dropping common terms $H^r \xi^r = -(\xi^r)_{\times} b$. Considering the additional bias states in $\xi^r$, which requires appending zeros to $b$, the Jacobain is defined as follows
+\begin{equation}
+    \begin{split}
+        H^r \xi^r &= -(\xi^r)_{\times} b \\
+        H^r \begin{bmatrix}
+            \xi^R \\
+            \xi^v \\
+            \xi^p \\
+            \xi^{b \omega} \\
+            \xi^{b a}
+        \end{bmatrix} &= -\begin{bmatrix}
+            (\xi^R)_{\times} & \xi^v & \xi^p & \xi^{b \omega} & \xi^{b a} \\
+            0_{3 \times 1} & 0 & 0 & 0 & 0 \\
+            0_{3 \times 1} & 0 & 0 & 0 & 0 \\
+            0_{3 \times 1} & 0 & 0 & 0 & 0 \\
+            0_{3 \times 1} & 0 & 0 & 0 & 0 \\
+        \end{bmatrix} 
+        \begin{bmatrix}
+            m_W \\
+            0 \\
+            0 \\
+            0 \\
+            0
+        \end{bmatrix} \\
+        H^r \begin{bmatrix}
+            \xi^R \\
+            \xi^v \\
+            \xi^p \\
+            \xi^{b \omega} \\
+            \xi^{b a}
+        \end{bmatrix} &=  \begin{bmatrix}
+            - (\xi^R)_{\times} m_W \\
+            0 \\
+            0 \\
+            0 \\
+            0
+        \end{bmatrix} 
+        = \begin{bmatrix}
+            (m_W)_{\times} \xi^R  \\
+            0 \\
+            0 \\
+            0 \\
+            0
+        \end{bmatrix} \\
+        &\Rightarrow H^r = \begin{bmatrix}
+        (m_W)_{\times} & & 0_{3 \times 12} \\
+        & 0_{3 \times12} &\\
+        \end{bmatrix}
+    \end{split}
+    \label{eq: H^r mag InEKF}
+\end{equation}
+From the above equation, the Jacobain for the magnetometer can be defined by reducing the dimensions as done for the innovation
+\begin{equation}
+        H_{Mag} = \begin{bmatrix}
+            (m_W)_{\times} & & 0_{3 \times 12} \\
+            & 0_{4 \times 15} &\\
+            \end{bmatrix} = \begin{bmatrix}
+                (m_W)_{\times} & & 0_{3 \times 12}
+            \end{bmatrix}
+    \label{eq: H_mag InEKF}
+\end{equation}
+The measurement noise covariance can also be defined and reduced in dimensions similar to the GPS measurement noise covariance
+\begin{equation}
+    N_{Mag} = X \mathrm{cov}(\nu^{Mag}) X^{-1} := R \sigma^2_{\Tilde{y}_{Mag}} R^T
+    \label{eq: N mag InEKF}
+\end{equation}
+
 
 \subsection{Initialization of Covariance}
 The covariance for the QEKF and the InEKF filters do not represent the same underlying distribution because the error defined in the InEKF is defined for the Lie algebra. Therefore, a conversion between the covariances is required so that the initial covariances are at least approximately equal. Furthermore, this conversion can be used to compare the uncertainties estimated in the states between the filters, however, in this report this conversion will only be used for initialization.
@@ -535,7 +704,7 @@ The attitude error for the quaternion $\delta \theta$, defined in the world fram
     \end{split}
     \label{eq: quaternion position -> RInEKF position}
 \end{equation}
-Using equation \eqref{eq: quaternion velocity -> RInEKF velocity}, the initial covariance for the QEKF can be used to approximate the initial covariance for the InEKF for the velocity
+Note these derivations are similar to the ones used to approximate the true velocity and position in equations \eqref{eq: approx true v InEKF} and \eqref{eq: approx true p InEKF}. Using equation \eqref{eq: quaternion velocity -> RInEKF velocity}, the initial covariance for the QEKF can be used to approximate the initial covariance for the InEKF for the velocity
 \begin{equation}
     \begin{split}
         \mathbb{E}[\xi_0^v (\xi_0^v)^T] &\approx \mathbb{E}[( -\delta v_0 + (v_0)_{\times} \xi_0^R) ( -\delta v_0 + (v_0)_{\times} \xi_0^R)^T]\\ 
@@ -558,7 +727,7 @@ Note that the errors are assumed to be independent and have a mean of zero. The 
 
 
 \subsection{Algorithm}
-The Invariant Extended Kalman filter is summarized with the following pseudo code in the algorithm below. The initial state and covariance are first defined where the covariance uses conversions in the previous section. If IMU measurements are available the state and covariance are propagated. If a GPS measurement is received, the algorithm uniquely has to switch from the right to left covariance. The update steps for the left measurement model are then followed ending a with a switch back to the right covariance so that the uncertainty in the error states is in the world frame. Additionally, the rotation matrix $R$ is checked to ensure the $SO(3)$ constraint is maintained.
+The Invariant Extended Kalman filter is summarized with the following pseudo code in the algorithm below. The initial state and covariance are first defined where the covariance uses conversions in the previous section. If IMU measurements are available, the state and covariance are propagated. If a GPS measurement is received, the algorithm uniquely has to switch from the right to left covariance. The update steps for the left measurement model are then followed ending a with a switch back to the right covariance so that the uncertainty in the error states is in the world frame. If a magnetometer measurement is received, the right measurement model is followed without requiring the switching of covariances. Additionally, the rotation matrix $R$ is checked to ensure the $SO(3)$ constraint is maintained after each update of the state.
 
 \RestyleAlgo{ruled}
 \begin{algorithm}[H]
@@ -571,24 +740,37 @@ $(\hat{X}_0, \hat{\Theta}_0 ) = x_0;$ \tcp{See equations \eqref{eq: SE3_2 group}
         $F_k = I_{15} + \Delta t A^r \big|_{\hat{X}_{k-1}}$\;
         $(\hat{X}_k, \hat{\Theta}_k) = f_\text{InEKF}(\hat{X}_{k-1},\hat{\Theta}_{k-1},u_{k-1});$ \tcp{See equations in \eqref{eq: f InEKF}}
         \If{$\left|1 - \operatorname{det} (R)\right| > 10^{-5}$}{
-            $R_k \gets (R_k R_k^T)^{- \frac{1}{2}} R_k$\;
+            $R_k = (R_k R_k^T)^{- \frac{1}{2}} R_k$\;
         }
         $Q^r_k = Ad_{(\hat{X}_k,\hat{\Theta}_k)} \mathrm{Cov}(w_d) (Ad_{(\hat{X}_k,\hat{\Theta}_k)})^T $\;
         $P^r_k = F^r_k P^r_{k-1} (F^r_k)^T + Q^r_k;$ %\tcp{See equation \eqref{eq: Q RInEKF} for $Q^r$ definition}
     }
     \If{$GPS$ $measurement$}{
+        $N_{GPS,k} = \hat{R}^T_k \sigma_{\Tilde{y}_{GPS,k}}^2 \hat{R}_k$\;
         $ P^l_k = Ad_{(\hat{X}^{-1}_k,\hat{\Theta}_k)} P^r_k Ad_{(\hat{X}^{-1}_k,\hat{\Theta}_k)}^T $\;
-        $V^l_k = \hat{R}_k^T \sigma_{\Tilde{y}_p}^2 \hat{R}_k$\;
-        $S = H^l P^l_k (H^l)^T + V^l_k$\;
-        $(K^{\xi}, K^{\zeta}) = K = P^l_k (H^l)^T S^{-1}$\;
-        $\hat{X}_k^+ = \hat{X}_k \text{Exp} ( K^{\xi}_k \, \big(\Pi \hat{X}_k^{-1} \Tilde{y}_k)$\;
-        $\hat{\Theta}_k^+ = \hat{\Theta}_k + K_k^{\zeta} ( \Pi \hat{X}_k^{-1} \Tilde{y}_k)$\;
+        $S = H_{GPS} P^l_k (H_{GPS})^T + N_{GPS,k}$\;
+        $(K^{\xi}, K^{\zeta}) = K = P^l_k (H_{GPS})^T S^{-1}$\;
+        $\hat{X}_k^+ = \hat{X}_k \text{Exp} ( K^{\xi}_k \, \big(\Pi \hat{X}_k^{-1} \Tilde{y}_{GPS,k}))$\;
+        $\hat{\Theta}_k^+ = \hat{\Theta}_k + K_k^{\zeta} \Pi \hat{X}_k^{-1} \Tilde{y}_{GPS,k}$\;
         \If{$\left|1 - \operatorname{det} (R)\right| > 10^{-5}$}{
-            $R^{+}_k \gets (R^{+}_k R^{T +}_k)^{- \frac{1}{2}} R^{+}_k$\;
+            $R^{+}_k = (R^{+}_k R^{T +}_k)^{- \frac{1}{2}} R^{+}_k$\;
         }
-        $P^{l +}_k = (I - K H) P^l_k (I-K H)^T + K N^l K^T$\;
-        $P^{r +}_k =  Ad_{(\hat{X}_k^+,\hat{\Theta}_k^+)} P^{l +}_k Ad_{(\hat{X}_k^+,\hat{\Theta}_k^+)}^T $
+        $P^{l +}_k = (I - K H_{GPS}) P^l_k (I-K H_{GPS})^T + K N_{GPS,k} K^T$\;
+        $P^{r +}_k =  Ad_{(\hat{X}_k^+,\hat{\Theta}_k^+)} P^{l +}_k Ad_{(\hat{X}_k^+,\hat{\Theta}_k^+)}^T $;
     }
+    \If{$Magnetometer$ $measurement$}{
+        $\Tilde{y}_{Mag,k}^+ = \frac{\Tilde{y}_{Mag,k}}{\lVert \Tilde{y}_{Mag,k} \rVert}$\;
+        $N_{Mag,k} = \hat{R}_k \sigma_{\Tilde{y}_{Mag,k}}^2 \hat{R}^T_k$\;
+        $S = H_{Mag} P^r_k (H_{Mag})^T + N_{Mag,k}$\;
+        $(K^{\xi}, K^{\zeta}) = K = P^r_k (H_{Mag})^T S^{-1}$\;
+        $\hat{X}_k^+ = \text{Exp} ( K^{\xi}_k \, \big(\Pi \hat{X}_k \Tilde{y}_{Mag,k}^+ - m_W \big)) \hat{X}_k $\;
+        $\hat{\Theta}_k^+ = \hat{\Theta}_k + K_k^{\zeta} (\Pi \hat{X}_k \Tilde{y}_{Mag,k}^+ - m_W )$\;
+        \If{$\left|1 - \operatorname{det} (R)\right| > 10^{-5}$}{
+            $R^{+}_k = (R^{+}_k R^{T +}_k)^{- \frac{1}{2}} R^{+}_k$\;
+        }
+        $P^{r +}_k = (I - K H_{Mag}) P^r_k (I-K H_{Mag})^T + K N_{Mag,k} K^T$\;
+    }
+    
 }
 \end{algorithm}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
