@@ -16,8 +16,8 @@ The representation of pose can also be defined through the Special Euclidean Gro
 \begin{equation}
     SE_2(3) = \left\{X = \begin{bmatrix}
     R & v & p\\
-    0_{3 \times 1} & 1 & 0\\
-    0_{3 \times 1} & 0 & 1
+    0_{1 \times 3} & 1 & 0\\
+    0_{1 \times 3} & 0 & 1
     \end{bmatrix} \in \mathbb{R}^{5 \times 5}
     \mid R \in SO(3); v, p \in \mathbb{R}^3\right\}
     \label{eq: SE3_2 group}
@@ -37,8 +37,8 @@ The Lie algebra associated with the $SE_2(3)$ is given as
     \end{bmatrix}^{\wedge}
         =\begin{bmatrix}
     (\xi^R)_{\times} & \xi^v & \xi^p\\
-    0_{3 \times 1} & 1 & 0\\
-    0_{3 \times 1}  & 0 & 1
+    0_{1 \times 3} & 0 & 0\\
+    0_{1 \times 3}  & 0 & 0
     \end{bmatrix} \in \mathbb{R}^{5 \times 5}
     \mid \xi^R, \xi^v, \xi^p \in \mathbb{R}^3\right\}
     \label{eq: se_2(3) lie algebra}
@@ -139,18 +139,18 @@ Where the right Lie group error $\eta^r$ is defined as
     \eta^r = \hat{X} X^{-1} = 
         \begin{bmatrix}
             \hat{R} & \hat{v} & \hat{p}\\
-            0_{3 \times 1} & 1 & 0\\
-            0_{3 \times 1} & 0 & 1
+            0_{1 \times 3} & 1 & 0\\
+            0_{1 \times 3} & 0 & 1
         \end{bmatrix}
         \begin{bmatrix}
             R^T & -R^T v & -R^T p \\
-            0_{3 \times 1} & 1 & 0\\
-            0_{3 \times 1} & 0 & 1
+            0_{1 \times 3} & 1 & 0\\
+            0_{1 \times 3} & 0 & 1
         \end{bmatrix} =
         \begin{bmatrix}
             \hat{R} R^T & \hat{v} - \hat{R} R^T v & \hat{p} - \hat{R} R^T p\\
-            0_{3 \times 1} & 1 & 0\\
-            0_{3 \times 1} & 0 & 1
+            0_{1 \times 3} & 1 & 0\\
+            0_{1 \times 3} & 0 & 1
         \end{bmatrix}
     \label{eq: eta^r full}
 \end{equation}
@@ -509,7 +509,7 @@ Note that the negative is dropped in the last part of the above equation because
         \end{bmatrix}
         - 
         \begin{bmatrix}
-            0_{3 \times 1} \\
+            0_{1 \times 3} \\
             0 \\
             1
         \end{bmatrix} \\
@@ -626,10 +626,10 @@ To determine the Jacobain for the magnetometer $H_{Mag}$, the derivation from \e
             \xi^{b a}
         \end{bmatrix} &= -\begin{bmatrix}
             (\xi^R)_{\times} & \xi^v & \xi^p & \xi^{b \omega} & \xi^{b a} \\
-            0_{3 \times 1} & 0 & 0 & 0 & 0 \\
-            0_{3 \times 1} & 0 & 0 & 0 & 0 \\
-            0_{3 \times 1} & 0 & 0 & 0 & 0 \\
-            0_{3 \times 1} & 0 & 0 & 0 & 0 \\
+            0_{1 \times 3} & 0 & 0 & 0 & 0 \\
+            0_{1 \times 3} & 0 & 0 & 0 & 0 \\
+            0_{1 \times 3} & 0 & 0 & 0 & 0 \\
+            0_{1 \times 3} & 0 & 0 & 0 & 0 \\
         \end{bmatrix} 
         \begin{bmatrix}
             m_W \\
@@ -660,7 +660,7 @@ To determine the Jacobain for the magnetometer $H_{Mag}$, the derivation from \e
         \end{bmatrix} \\
         &\Rightarrow H^r = \begin{bmatrix}
         (m_W)_{\times} & & 0_{3 \times 12} \\
-        & 0_{3 \times12} &\\
+        & 0_{2\times 15} &\\
         \end{bmatrix}
     \end{split}
     \label{eq: H^r mag InEKF}
@@ -669,7 +669,7 @@ From the above equation, the Jacobain for the magnetometer can be defined by red
 \begin{equation}
         H_{Mag} = \begin{bmatrix}
             (m_W)_{\times} & & 0_{3 \times 12} \\
-            & 0_{4 \times 15} &\\
+            & 0_{2 \times 15} &\\
             \end{bmatrix} = \begin{bmatrix}
                 (m_W)_{\times} & & 0_{3 \times 12}
             \end{bmatrix}
